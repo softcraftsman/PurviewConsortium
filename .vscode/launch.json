@@ -1,0 +1,39 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "API (.NET)",
+      "type": "dotnet",
+      "request": "launch",
+      "preLaunchTask": "build-api",
+      "projectPath": "${workspaceFolder}/src/PurviewConsortium.Api/PurviewConsortium.Api.csproj",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5236"
+      },
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
+        "uriFormat": "%s/swagger"
+      }
+    },
+    {
+      "name": "Frontend (Edge)",
+      "type": "msedge",
+      "request": "launch",
+      "preLaunchTask": "start-frontend",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/src/PurviewConsortium.Web/src",
+      "sourceMapPathOverrides": {
+        "webpack:///src/*": "${webRoot}/*"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full Stack (API + Frontend)",
+      "configurations": ["API (.NET)", "Frontend (Edge)"],
+      "stopAll": true
+    }
+  ]
+}

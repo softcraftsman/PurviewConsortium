@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: purview-consortium-db
+    environment:
+      SA_PASSWORD: "YourStrong!Passw0rd"
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+
+  api:
+    build:
+      context: .
+      dockerfile: src/PurviewConsortium.Api/Dockerfile
+    container_name: purview-consortium-api
+    ports:
+      - "7001:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=PurviewConsortium;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=true;
+    depends_on:
+      - sqlserver
+
+volumes:
+  sqlserver-data:

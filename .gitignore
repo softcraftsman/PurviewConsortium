@@ -1,0 +1,10 @@
+bin/
+obj/
+node_modules/
+dist/
+.vs/
+*.user
+*.suo
+.env
+local.settings.json
+appsettings.Development.json
