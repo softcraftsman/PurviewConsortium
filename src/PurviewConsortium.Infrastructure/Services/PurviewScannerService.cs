@@ -2,12 +2,26 @@ using System.Text.Json;
 using Azure.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Identity.Client;
 using PurviewConsortium.Core.Interfaces;
 
 namespace PurviewConsortium.Infrastructure.Services;
 
+/// <summary>
+/// Scans the Microsoft Purview Unified Catalog for curated Data Products
+/// using the new Data Products API (api-version 2025-09-15-preview).
+/// 
+/// Supports two auth flows:
+/// 1. On-Behalf-Of (OBO): When a user triggers the scan, their token is exchanged
+///    for a Purview token with the user's permissions (sees all governance domains).
+/// 2. Client Credentials: Fallback for automated/timer-triggered scans using the SP token.
+/// </summary>
 public class PurviewScannerService : IPurviewScannerService
 {
+    private const string UnifiedCatalogBaseUrl = "https://api.purview-service.microsoft.com";
+    private const string DataProductsApiVersion = "2025-09-15-preview";
+    private const string PurviewScope = "https://purview.azure.net/.default";
+
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<PurviewScannerService> _logger;
@@ -25,190 +39,274 @@ public class PurviewScannerService : IPurviewScannerService
     public async Task<List<DataProductSyncResult>> ScanForShareableDataProductsAsync(
         string purviewAccountName,
         string tenantId,
+        string? userAccessToken = null,
+        string? consortiumDomainIds = null,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Scanning Purview account {Account} in tenant {Tenant} for shareable Data Products",
-            purviewAccountName, tenantId);
+        _logger.LogInformation(
+            "Scanning Purview Unified Catalog for Data Products (account: {Account}, tenant: {Tenant}, domains: {Domains})",
+            purviewAccountName, tenantId, consortiumDomainIds ?? "ALL");
 
         var results = new List<DataProductSyncResult>();
 
+        // Parse domain filter
+        var domainFilter = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(consortiumDomainIds))
+        {
+            foreach (var id in consortiumDomainIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                domainFilter.Add(id);
+            }
+        }
+
         try
         {
-            var accessToken = await GetAccessTokenAsync(tenantId, cancellationToken);
+            var accessToken = await GetAccessTokenAsync(tenantId, userAccessToken, cancellationToken);
             var httpClient = _httpClientFactory.CreateClient("Purview");
 
-            var baseUrl = $"https://{purviewAccountName}.purview.azure.com";
+            var dataProducts = await FetchDataProductsFromUnifiedCatalogAsync(
+                httpClient, accessToken, cancellationToken);
 
-            // Try Data Products API first
-            var dataProducts = await FetchDataProductsAsync(httpClient, baseUrl, accessToken, cancellationToken);
-
-            if (dataProducts != null)
+            foreach (var dp in dataProducts)
             {
-                foreach (var dp in dataProducts)
+                // Filter by governance domain if configured
+                if (domainFilter.Count > 0)
                 {
-                    // Filter for Consortium-Shareable glossary term
-                    var glossaryTerms = ExtractGlossaryTerms(dp);
-                    if (!glossaryTerms.Any(t => t.Equals("Consortium-Shareable", StringComparison.OrdinalIgnoreCase)))
-                        continue;
+                    var dpDomain = dp.TryGetProperty("domain", out var domainVal) && domainVal.ValueKind == JsonValueKind.String
+                        ? domainVal.GetString()
+                        : null;
 
-                    results.Add(MapToSyncResult(dp, glossaryTerms));
+                    if (dpDomain == null || !domainFilter.Contains(dpDomain))
+                    {
+                        var dpName = dp.TryGetProperty("name", out var nameVal) ? nameVal.GetString() : "unknown";
+                        _logger.LogDebug("Skipping Data Product '{Name}' — domain {Domain} not in consortium filter",
+                            dpName, dpDomain);
+                        continue;
+                    }
                 }
+
+                results.Add(MapDataProductToSyncResult(dp));
             }
 
-            _logger.LogInformation("Found {Count} shareable Data Products in {Account}",
-                results.Count, purviewAccountName);
+            _logger.LogInformation(
+                "Found {Count} Data Products in Unified Catalog for account {Account} (filtered from {Total} total)",
+                results.Count, purviewAccountName, dataProducts.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error scanning Purview account {Account}", purviewAccountName);
+            _logger.LogError(ex,
+                "Error scanning Unified Catalog for account {Account} in tenant {Tenant}",
+                purviewAccountName, tenantId);
             throw;
         }
 
         return results;
     }
 
-    private async Task<string> GetAccessTokenAsync(string tenantId, CancellationToken cancellationToken)
+    private async Task<string> GetAccessTokenAsync(string tenantId, string? userAccessToken, CancellationToken cancellationToken)
     {
         var clientId = _configuration["AzureAd:ClientId"];
         var clientSecret = _configuration["AzureAd:ClientSecret"];
 
+        // If we have a user token, use On-Behalf-Of flow to get a Purview token
+        // with the user's permissions (sees all governance domains).
+        if (!string.IsNullOrEmpty(userAccessToken))
+        {
+            _logger.LogInformation("Using On-Behalf-Of (OBO) flow with user token for Purview access");
+            try
+            {
+                var confidentialClient = ConfidentialClientApplicationBuilder
+                    .Create(clientId)
+                    .WithClientSecret(clientSecret)
+                    .WithAuthority($"https://login.microsoftonline.com/{tenantId}")
+                    .Build();
+
+                var oboResult = await confidentialClient
+                    .AcquireTokenOnBehalfOf(
+                        new[] { PurviewScope },
+                        new UserAssertion(userAccessToken))
+                    .ExecuteAsync(cancellationToken);
+
+                _logger.LogInformation("OBO token acquired successfully for user");
+                return oboResult.AccessToken;
+            }
+            catch (MsalException ex)
+            {
+                _logger.LogWarning(ex, "OBO token acquisition failed, falling back to client credentials. Error: {Error}", ex.Message);
+                // Fall through to client credentials
+            }
+        }
+        else
+        {
+            _logger.LogInformation("No user token provided; using client credentials for Purview access");
+        }
+
+        // Fallback: client credentials (SP token)
         var credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
         var tokenResult = await credential.GetTokenAsync(
-            new Azure.Core.TokenRequestContext(new[] { "https://purview.azure.net/.default" }),
+            new Azure.Core.TokenRequestContext(new[] { PurviewScope }),
             cancellationToken);
 
         return tokenResult.Token;
     }
 
-    private async Task<List<JsonElement>?> FetchDataProductsAsync(
+    /// <summary>
+    /// Fetches all Data Products from the Unified Catalog API with pagination.
+    /// </summary>
+    private async Task<List<JsonElement>> FetchDataProductsFromUnifiedCatalogAsync(
         HttpClient httpClient,
-        string baseUrl,
         string accessToken,
         CancellationToken cancellationToken)
     {
-        try
+        var allItems = new List<JsonElement>();
+        int skip = 0;
+        const int pageSize = 100;
+        bool hasMore = true;
+
+        while (hasMore)
         {
-            var request = new HttpRequestMessage(HttpMethod.Get,
-                $"{baseUrl}/dataproducts/api/data-products?api-version=2024-03-01-preview");
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+            var url = $"{UnifiedCatalogBaseUrl}/datagovernance/catalog/dataProducts" +
+                      $"?api-version={DataProductsApiVersion}&top={pageSize}&skip={skip}";
+
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+            _logger.LogInformation("Fetching Data Products from Unified Catalog (skip={Skip})", skip);
 
             var response = await httpClient.SendAsync(request, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Data Products API returned {StatusCode}, falling back to Catalog Search",
-                    response.StatusCode);
-                return await FallbackToCatalogSearchAsync(httpClient, baseUrl, accessToken, cancellationToken);
+                var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError(
+                    "Unified Catalog API returned {StatusCode}: {Body}",
+                    response.StatusCode, errorBody);
+
+                if (allItems.Count == 0)
+                {
+                    throw new HttpRequestException(
+                        $"Unified Catalog Data Products API returned {(int)response.StatusCode} " +
+                        $"({response.StatusCode}): {errorBody}");
+                }
+
+                break; // Return what we have so far
             }
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken);
             var doc = JsonDocument.Parse(json);
 
-            var items = new List<JsonElement>();
             if (doc.RootElement.TryGetProperty("value", out var valueArray))
             {
+                int count = 0;
                 foreach (var item in valueArray.EnumerateArray())
                 {
-                    items.Add(item.Clone());
+                    allItems.Add(item.Clone());
+                    count++;
                 }
+
+                hasMore = count == pageSize; // More pages if we got a full page
+                skip += count;
             }
-
-            return items;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Data Products API failed, falling back to Catalog Search");
-            return await FallbackToCatalogSearchAsync(httpClient, baseUrl, accessToken, cancellationToken);
-        }
-    }
-
-    private async Task<List<JsonElement>?> FallbackToCatalogSearchAsync(
-        HttpClient httpClient,
-        string baseUrl,
-        string accessToken,
-        CancellationToken cancellationToken)
-    {
-        var searchBody = new
-        {
-            keywords = "*",
-            filter = new
+            else
             {
-                and = new object[]
-                {
-                    new { glossaryTerms = new[] { "Consortium-Shareable" } }
-                }
-            },
-            limit = 1000
-        };
-
-        var request = new HttpRequestMessage(HttpMethod.Post,
-            $"{baseUrl}/catalog/api/search/query?api-version=2023-09-01");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-        request.Content = new StringContent(
-            JsonSerializer.Serialize(searchBody),
-            System.Text.Encoding.UTF8,
-            "application/json");
-
-        var response = await httpClient.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        var json = await response.Content.ReadAsStringAsync(cancellationToken);
-        var doc = JsonDocument.Parse(json);
-
-        var items = new List<JsonElement>();
-        if (doc.RootElement.TryGetProperty("value", out var valueArray))
-        {
-            foreach (var item in valueArray.EnumerateArray())
-            {
-                items.Add(item.Clone());
+                hasMore = false;
             }
         }
 
-        return items;
+        _logger.LogInformation("Retrieved {Count} total Data Products from Unified Catalog", allItems.Count);
+        return allItems;
     }
 
-    private static List<string> ExtractGlossaryTerms(JsonElement element)
+    /// <summary>
+    /// Maps a Unified Catalog Data Product JSON element to a DataProductSyncResult.
+    /// </summary>
+    private static DataProductSyncResult MapDataProductToSyncResult(JsonElement dp)
     {
-        var terms = new List<string>();
-
-        if (element.TryGetProperty("glossaryTerms", out var termsArray) ||
-            element.TryGetProperty("term", out termsArray) ||
-            element.TryGetProperty("meanings", out termsArray))
+        // Extract owner from contacts array
+        string? owner = null;
+        string? ownerEmail = null;
+        if (dp.TryGetProperty("contacts", out var contacts) &&
+            contacts.ValueKind == JsonValueKind.Array)
         {
-            if (termsArray.ValueKind == JsonValueKind.Array)
+            foreach (var contact in contacts.EnumerateArray())
             {
-                foreach (var term in termsArray.EnumerateArray())
-                {
-                    var name = term.TryGetProperty("displayText", out var displayText)
-                        ? displayText.GetString()
-                        : term.TryGetProperty("name", out var nameVal)
-                            ? nameVal.GetString()
-                            : term.GetString();
-
-                    if (!string.IsNullOrEmpty(name))
-                        terms.Add(name);
-                }
+                owner = GetStringProperty(contact, "displayName", "name");
+                ownerEmail = GetStringProperty(contact, "mail", "email");
+                if (!string.IsNullOrEmpty(owner))
+                    break;
             }
         }
 
-        return terms;
-    }
+        // Extract governance domain name
+        string? domain = null;
+        if (dp.TryGetProperty("domain", out var domainObj) &&
+            domainObj.ValueKind == JsonValueKind.Object)
+        {
+            domain = GetStringProperty(domainObj, "name");
+        }
 
-    private static DataProductSyncResult MapToSyncResult(JsonElement element, List<string> glossaryTerms)
-    {
+        // Extract asset count from additionalProperties
+        int assetCount = 0;
+        if (dp.TryGetProperty("additionalProperties", out var addProps) &&
+            addProps.ValueKind == JsonValueKind.Object)
+        {
+            if (addProps.TryGetProperty("assetCount", out var assetCountVal))
+            {
+                if (assetCountVal.ValueKind == JsonValueKind.Number)
+                    assetCount = assetCountVal.GetInt32();
+                else if (assetCountVal.ValueKind == JsonValueKind.String &&
+                         int.TryParse(assetCountVal.GetString(), out var parsed))
+                    assetCount = parsed;
+            }
+        }
+
+        // Extract last modified from systemData
+        DateTime? lastModified = null;
+        if (dp.TryGetProperty("systemData", out var systemData) &&
+            systemData.ValueKind == JsonValueKind.Object)
+        {
+            if (systemData.TryGetProperty("lastModifiedAt", out var modifiedAt) &&
+                modifiedAt.ValueKind == JsonValueKind.String &&
+                DateTime.TryParse(modifiedAt.GetString(), out var dt))
+            {
+                lastModified = dt;
+            }
+        }
+
+        // Check endorsed status
+        bool endorsed = dp.TryGetProperty("endorsed", out var endorsedVal) &&
+                        endorsedVal.ValueKind == JsonValueKind.True;
+
+        // Build classifications from type + status for discoverability
+        var classifications = new List<string>();
+        var dpType = GetStringProperty(dp, "type");
+        var dpStatus = GetStringProperty(dp, "status");
+        if (!string.IsNullOrEmpty(dpType)) classifications.Add($"Type:{dpType}");
+        if (!string.IsNullOrEmpty(dpStatus)) classifications.Add($"Status:{dpStatus}");
+        if (endorsed) classifications.Add("Endorsed");
+
         return new DataProductSyncResult
         {
-            PurviewQualifiedName = GetStringProperty(element, "qualifiedName", "id", "name") ?? "unknown",
-            Name = GetStringProperty(element, "name", "displayName") ?? "Unnamed",
-            Description = GetStringProperty(element, "description"),
-            Owner = GetStringProperty(element, "owner", "ownerName"),
-            OwnerEmail = GetStringProperty(element, "ownerEmail"),
-            SourceSystem = GetStringProperty(element, "sourceSystem", "sourceType", "typeName"),
-            SchemaJson = ExtractSchemaJson(element),
-            Classifications = ExtractClassifications(element),
-            GlossaryTerms = glossaryTerms,
-            SensitivityLabel = GetStringProperty(element, "sensitivityLabel", "sensitivity"),
-            PurviewLastModified = ExtractDateTime(element, "lastModifiedTS", "updateTime", "modifiedTime")
+            PurviewQualifiedName = GetStringProperty(dp, "id") ?? GetStringProperty(dp, "name") ?? "unknown",
+            Name = GetStringProperty(dp, "name") ?? "Unnamed",
+            Description = GetStringProperty(dp, "description") ?? GetStringProperty(dp, "businessUse"),
+            Owner = owner,
+            OwnerEmail = ownerEmail,
+            SourceSystem = domain,
+            SchemaJson = null,
+            Classifications = classifications,
+            GlossaryTerms = new List<string>(),
+            SensitivityLabel = GetStringProperty(dp, "sensitivityLabel"),
+            PurviewLastModified = lastModified,
+            Status = dpStatus,
+            DataProductType = dpType,
+            GovernanceDomain = domain,
+            AssetCount = assetCount,
+            BusinessUse = GetStringProperty(dp, "businessUse"),
+            Endorsed = endorsed,
+            UpdateFrequency = GetStringProperty(dp, "updateFrequency"),
+            Documentation = GetStringProperty(dp, "documentation")
         };
     }
 
@@ -218,52 +316,6 @@ public class PurviewScannerService : IPurviewScannerService
         {
             if (element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String)
                 return value.GetString();
-        }
-        return null;
-    }
-
-    private static List<string> ExtractClassifications(JsonElement element)
-    {
-        var classifications = new List<string>();
-
-        if (element.TryGetProperty("classifications", out var classArray) &&
-            classArray.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var c in classArray.EnumerateArray())
-            {
-                var name = c.TryGetProperty("typeName", out var typeName)
-                    ? typeName.GetString()
-                    : c.GetString();
-                if (!string.IsNullOrEmpty(name))
-                    classifications.Add(name);
-            }
-        }
-
-        return classifications;
-    }
-
-    private static string? ExtractSchemaJson(JsonElement element)
-    {
-        if (element.TryGetProperty("schema", out var schema) ||
-            element.TryGetProperty("columns", out schema) ||
-            element.TryGetProperty("schemaElements", out schema))
-        {
-            return schema.GetRawText();
-        }
-        return null;
-    }
-
-    private static DateTime? ExtractDateTime(JsonElement element, params string[] propertyNames)
-    {
-        foreach (var name in propertyNames)
-        {
-            if (element.TryGetProperty(name, out var value))
-            {
-                if (value.ValueKind == JsonValueKind.String && DateTime.TryParse(value.GetString(), out var dt))
-                    return dt;
-                if (value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var epoch))
-                    return DateTimeOffset.FromUnixTimeMilliseconds(epoch).UtcDateTime;
-            }
         }
         return null;
     }

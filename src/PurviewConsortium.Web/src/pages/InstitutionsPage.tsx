@@ -27,6 +27,10 @@ import {
   ArrowSync24Regular,
   Add24Regular,
   Delete24Regular,
+  Copy24Regular,
+  Link24Regular,
+  CheckmarkCircle24Regular,
+  DismissCircle24Regular,
 } from '@fluentui/react-icons';
 import { adminApi, type Institution, type SyncHistoryItem } from '../api';
 
@@ -43,6 +47,22 @@ export default function InstitutionsPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<Institution | null>(null);
+  const [createdInstitution, setCreatedInstitution] = useState<{ name: string; tenantId: string } | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const clientId = import.meta.env.VITE_AZURE_CLIENT_ID || '';
+  const redirectUri = window.location.origin;
+
+  const buildConsentUrl = (tenantId: string) =>
+    `https://login.microsoftonline.com/${tenantId}/adminconsent?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+
+  const copyToClipboard = async (text: string, id?: string) => {
+    await navigator.clipboard.writeText(text);
+    if (id) {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    }
+  };
 
   const { data: institutions, isLoading } = useQuery({
     queryKey: ['institutions'],
@@ -68,6 +88,7 @@ export default function InstitutionsPage() {
     mutationFn: () => adminApi.createInstitution(form),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['institutions'] });
+      setCreatedInstitution({ name: form.name, tenantId: form.tenantId });
       setForm(emptyForm);
       setAddOpen(false);
     },
@@ -78,6 +99,21 @@ export default function InstitutionsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['institutions'] });
       setDeleteTarget(null);
+    },
+  });
+
+  const consentToggleMutation = useMutation({
+    mutationFn: (inst: Institution) =>
+      adminApi.updateInstitution(inst.id, {
+        name: inst.name,
+        purviewAccountName: inst.purviewAccountName,
+        fabricWorkspaceId: inst.fabricWorkspaceId,
+        primaryContactEmail: inst.primaryContactEmail,
+        isActive: inst.isActive,
+        adminConsentGranted: !inst.adminConsentGranted,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['institutions'] });
     },
   });
 
@@ -151,6 +187,39 @@ export default function InstitutionsPage() {
                         type="email"
                       />
                     </Field>
+                    {form.tenantId.trim() && (
+                      <div style={{
+                        backgroundColor: tokens.colorNeutralBackground3,
+                        borderRadius: '6px',
+                        padding: '12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                      }}>
+                        <Text size={200} weight="semibold" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Link24Regular style={{ fontSize: '14px' }} /> Admin Consent Link
+                        </Text>
+                        <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+                          Send this link to the institution's Entra admin so they can grant your app access to their tenant.
+                        </Text>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
+                          <Input
+                            readOnly
+                            value={buildConsentUrl(form.tenantId.trim())}
+                            style={{ flex: 1, fontSize: '12px' }}
+                            size="small"
+                          />
+                          <Button
+                            appearance="subtle"
+                            icon={<Copy24Regular />}
+                            size="small"
+                            onClick={() => copyToClipboard(buildConsentUrl(form.tenantId.trim()), 'dialog')}
+                          >
+                            {copiedId === 'dialog' ? 'Copied!' : 'Copy'}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     {createMutation.isError && (
                       <Text style={{ color: tokens.colorPaletteRedForeground1 }}>
                         Failed to create institution. Please try again.
@@ -208,6 +277,52 @@ export default function InstitutionsPage() {
         </DialogSurface>
       </Dialog>
 
+      {/* Post-creation Admin Consent Link Dialog */}
+      <Dialog open={createdInstitution !== null} onOpenChange={(_, data) => { if (!data.open) setCreatedInstitution(null); }}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Institution Created</DialogTitle>
+            <DialogContent>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingTop: '8px' }}>
+                <Text>
+                  <Text weight="bold">{createdInstitution?.name}</Text> has been added to the consortium.
+                </Text>
+                <Text>
+                  Copy the admin consent link below and send it to the institution's Entra ID administrator.
+                  Once they approve, their Purview catalog can be synced.
+                </Text>
+                <div style={{
+                  backgroundColor: tokens.colorNeutralBackground3,
+                  borderRadius: '6px',
+                  padding: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                }}>
+                  <Text size={200} weight="semibold">Admin Consent URL</Text>
+                  <Input
+                    readOnly
+                    value={createdInstitution ? buildConsentUrl(createdInstitution.tenantId) : ''}
+                    style={{ fontSize: '12px' }}
+                    size="small"
+                  />
+                  <Button
+                    appearance="primary"
+                    icon={<Copy24Regular />}
+                    onClick={() => createdInstitution && copyToClipboard(buildConsentUrl(createdInstitution.tenantId), 'created')}
+                  >
+                    {copiedId === 'created' ? 'Copied to Clipboard!' : 'Copy Consent Link'}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+            <DialogActions>
+              <Button appearance="secondary" onClick={() => setCreatedInstitution(null)}>Done</Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+
       {/* Institutions Table */}
       <Table>
         <TableHeader>
@@ -234,12 +349,33 @@ export default function InstitutionsPage() {
                 </Badge>
               </TableCell>
               <TableCell>
-                <Badge appearance="outline" color={inst.adminConsentGranted ? 'success' : 'warning'}>
-                  {inst.adminConsentGranted ? 'Granted' : 'Pending'}
-                </Badge>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Badge appearance="outline" color={inst.adminConsentGranted ? 'success' : 'warning'}>
+                    {inst.adminConsentGranted ? 'Granted' : 'Pending'}
+                  </Badge>
+                  <Button
+                    appearance="subtle"
+                    size="small"
+                    icon={inst.adminConsentGranted ? <DismissCircle24Regular /> : <CheckmarkCircle24Regular />}
+                    onClick={() => consentToggleMutation.mutate(inst)}
+                    disabled={consentToggleMutation.isPending}
+                    title={inst.adminConsentGranted ? 'Revoke consent' : 'Mark consent as granted'}
+                  >
+                    {inst.adminConsentGranted ? 'Revoke' : 'Grant'}
+                  </Button>
+                </div>
               </TableCell>
               <TableCell>
                 <div style={{ display: 'flex', gap: '4px' }}>
+                  <Button
+                    appearance="subtle"
+                    icon={<Copy24Regular />}
+                    onClick={() => copyToClipboard(buildConsentUrl(inst.tenantId), inst.id)}
+                    title="Copy admin consent link"
+                    size="small"
+                  >
+                    {copiedId === inst.id ? 'Copied!' : 'Consent Link'}
+                  </Button>
                   <Button
                     appearance="subtle"
                     icon={<Play24Regular />}

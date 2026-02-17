@@ -1,11 +1,10 @@
 import axios from 'axios';
-import { PublicClientApplication } from '@azure/msal-browser';
-import { msalConfig, apiScopes } from './authConfig';
-
-const msalInstance = new PublicClientApplication(msalConfig);
+import { msalInstance, apiScopes } from './authConfig';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL
+    ? `${import.meta.env.VITE_API_BASE_URL}/api`
+    : '/api',
   headers: { 'Content-Type': 'application/json' },
 });
 

@@ -20,6 +20,8 @@ import {
   Textarea,
   Input,
   Field,
+  MessageBar,
+  MessageBarBody,
 } from '@fluentui/react-components';
 import {
   ArrowLeft24Regular,
@@ -71,6 +73,8 @@ export default function DataProductDetailPage() {
     enabled: !!id,
   });
 
+  const [requestError, setRequestError] = useState<string | null>(null);
+
   const submitRequest = useMutation({
     mutationFn: () =>
       requestsApi.create({
@@ -81,8 +85,17 @@ export default function DataProductDetailPage() {
         requestedDurationDays: durationDays ? parseInt(durationDays) : undefined,
       }),
     onSuccess: () => {
+      setRequestError(null);
       setRequestDialogOpen(false);
+      setJustification('');
+      setTargetWorkspace('');
+      setTargetLakehouse('');
+      setDurationDays('');
       queryClient.invalidateQueries({ queryKey: ['product', id] });
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data || error?.message || 'Failed to submit access request.';
+      setRequestError(typeof message === 'string' ? message : JSON.stringify(message));
     },
   });
 
@@ -116,7 +129,7 @@ export default function DataProductDetailPage() {
           <Button
             appearance="primary"
             icon={<LockOpen24Regular />}
-            onClick={() => setRequestDialogOpen(true)}
+            onClick={() => { setRequestError(null); setRequestDialogOpen(true); }}
           >
             Request Access
           </Button>
@@ -197,6 +210,11 @@ export default function DataProductDetailPage() {
           <DialogTitle>Request Access to {product.name}</DialogTitle>
           <DialogBody>
             <DialogContent>
+              {requestError && (
+                <MessageBar intent="error" style={{ marginBottom: '12px' }}>
+                  <MessageBarBody>{requestError}</MessageBarBody>
+                </MessageBar>
+              )}
               <Field label="Business Justification" required>
                 <Textarea
                   value={justification}

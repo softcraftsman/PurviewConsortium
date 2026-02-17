@@ -39,15 +39,9 @@ public static class DependencyInjection
         services.AddScoped<ISyncOrchestrator, SyncOrchestrator>();
         services.AddScoped<INotificationService, EmailNotificationService>();
 
-        // Catalog search — use in-memory in dev, Azure AI Search in production
-        if (useDevelopmentServices)
-        {
-            services.AddScoped<ICatalogSearchService, InMemoryCatalogSearchService>();
-        }
-        else
-        {
-            services.AddScoped<ICatalogSearchService, AzureAISearchService>();
-        }
+        // Catalog search — always use database-backed search for the POC.
+        // Switch to AzureAISearchService once the search index is populated via sync.
+        services.AddScoped<ICatalogSearchService, InMemoryCatalogSearchService>();
 
         // HTTP clients with retry policy
         services.AddHttpClient("Purview")

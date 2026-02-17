@@ -28,7 +28,7 @@ public class PurviewScanFunction
 
         try
         {
-            await _syncOrchestrator.ScanAllInstitutionsAsync(cancellationToken);
+            await _syncOrchestrator.ScanAllInstitutionsAsync(userAccessToken: null, cancellationToken);
             _logger.LogInformation("Scheduled Purview scan completed successfully");
         }
         catch (Exception ex)

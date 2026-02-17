@@ -35,12 +35,12 @@ public class OnDemandScanFunction
             if (!string.IsNullOrEmpty(institutionId) && Guid.TryParse(institutionId, out var id))
             {
                 _logger.LogInformation("Scanning institution {Id}", id);
-                await _syncOrchestrator.ScanInstitutionAsync(id, cancellationToken);
+                await _syncOrchestrator.ScanInstitutionAsync(id, userAccessToken: null, cancellationToken);
             }
             else
             {
                 _logger.LogInformation("Scanning all institutions");
-                await _syncOrchestrator.ScanAllInstitutionsAsync(cancellationToken);
+                await _syncOrchestrator.ScanAllInstitutionsAsync(userAccessToken: null, cancellationToken);
             }
 
             var response = req.CreateResponse(HttpStatusCode.OK);

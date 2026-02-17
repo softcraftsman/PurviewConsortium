@@ -2,6 +2,6 @@ namespace PurviewConsortium.Core.Interfaces;
 
 public interface ISyncOrchestrator
 {
-    Task ScanAllInstitutionsAsync(CancellationToken cancellationToken = default);
-    Task ScanInstitutionAsync(Guid institutionId, CancellationToken cancellationToken = default);
+    Task ScanAllInstitutionsAsync(string? userAccessToken = null, CancellationToken cancellationToken = default);
+    Task ScanInstitutionAsync(Guid institutionId, string? userAccessToken = null, CancellationToken cancellationToken = default);
 }

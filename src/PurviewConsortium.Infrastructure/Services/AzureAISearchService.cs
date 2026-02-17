@@ -17,7 +17,7 @@ public class AzureAISearchService : ICatalogSearchService
     private readonly IDataProductRepository _dataProductRepo;
     private readonly IInstitutionRepository _institutionRepo;
     private readonly ILogger<AzureAISearchService> _logger;
-    private const string IndexName = "data-products";
+    private readonly string _indexName;
 
     public AzureAISearchService(
         IConfiguration configuration,
@@ -28,11 +28,12 @@ public class AzureAISearchService : ICatalogSearchService
         var endpoint = new Uri(configuration["AzureAISearch:Endpoint"]
             ?? throw new InvalidOperationException("AzureAISearch:Endpoint not configured"));
         var apiKey = configuration["AzureAISearch:ApiKey"];
+        _indexName = configuration["AzureAISearch:IndexName"] ?? "data-products";
 
         AzureKeyCredential credential = new(apiKey ?? throw new InvalidOperationException("AzureAISearch:ApiKey not configured"));
 
         _indexClient = new SearchIndexClient(endpoint, credential);
-        _searchClient = new SearchClient(endpoint, IndexName, credential);
+        _searchClient = new SearchClient(endpoint, _indexName, credential);
         _dataProductRepo = dataProductRepo;
         _institutionRepo = institutionRepo;
         _logger = logger;
@@ -234,7 +235,7 @@ public class AzureAISearchService : ICatalogSearchService
 
     private async Task EnsureIndexExistsAsync(CancellationToken cancellationToken)
     {
-        var index = new SearchIndex(IndexName)
+        var index = new SearchIndex(_indexName)
         {
             Fields = new List<SearchField>
             {

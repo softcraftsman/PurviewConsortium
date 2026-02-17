@@ -20,6 +20,16 @@ public class DataProduct
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
     public DateTime ModifiedDate { get; set; } = DateTime.UtcNow;
 
+    // Unified Catalog Data Product fields
+    public string? Status { get; set; }
+    public string? DataProductType { get; set; }
+    public string? GovernanceDomain { get; set; }
+    public int AssetCount { get; set; }
+    public string? BusinessUse { get; set; }
+    public bool Endorsed { get; set; }
+    public string? UpdateFrequency { get; set; }
+    public string? Documentation { get; set; }
+
     // Navigation properties
     public Institution Institution { get; set; } = null!;
     public ICollection<AccessRequest> AccessRequests { get; set; } = new List<AccessRequest>();

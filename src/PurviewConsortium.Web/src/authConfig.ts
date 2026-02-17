@@ -1,4 +1,4 @@
-import { Configuration, LogLevel } from '@azure/msal-browser';
+import { Configuration, LogLevel, PublicClientApplication } from '@azure/msal-browser';
 
 export const msalConfig: Configuration = {
   auth: {
@@ -23,8 +23,11 @@ export const msalConfig: Configuration = {
 
 export const loginRequest = {
   scopes: [
-    `api://${import.meta.env.VITE_AZURE_CLIENT_ID || '00000000-0000-0000-0000-000000000000'}/.default`,
+    `api://${import.meta.env.VITE_AZURE_CLIENT_ID || '00000000-0000-0000-0000-000000000000'}/access_as_user`,
   ],
 };
 
 export const apiScopes = loginRequest.scopes;
+
+// Single shared MSAL instance — used by both main.tsx and api.ts
+export const msalInstance = new PublicClientApplication(msalConfig);

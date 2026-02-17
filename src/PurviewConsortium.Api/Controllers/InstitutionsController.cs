@@ -16,6 +16,7 @@ public class InstitutionsController : ControllerBase
     private readonly ISyncOrchestrator _syncOrchestrator;
     private readonly ISyncHistoryRepository _syncHistoryRepo;
     private readonly IAuditLogRepository _auditLogRepo;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<InstitutionsController> _logger;
 
     public InstitutionsController(
@@ -23,12 +24,14 @@ public class InstitutionsController : ControllerBase
         ISyncOrchestrator syncOrchestrator,
         ISyncHistoryRepository syncHistoryRepo,
         IAuditLogRepository auditLogRepo,
+        IServiceScopeFactory scopeFactory,
         ILogger<InstitutionsController> logger)
     {
         _institutionRepo = institutionRepo;
         _syncOrchestrator = syncOrchestrator;
         _syncHistoryRepo = syncHistoryRepo;
         _auditLogRepo = auditLogRepo;
+        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
@@ -59,6 +62,7 @@ public class InstitutionsController : ControllerBase
             TenantId = dto.TenantId,
             PurviewAccountName = dto.PurviewAccountName,
             FabricWorkspaceId = dto.FabricWorkspaceId,
+            ConsortiumDomainIds = dto.ConsortiumDomainIds,
             PrimaryContactEmail = dto.PrimaryContactEmail,
             IsActive = true,
             AdminConsentGranted = false
@@ -88,6 +92,7 @@ public class InstitutionsController : ControllerBase
         institution.Name = dto.Name;
         institution.PurviewAccountName = dto.PurviewAccountName;
         institution.FabricWorkspaceId = dto.FabricWorkspaceId;
+        institution.ConsortiumDomainIds = dto.ConsortiumDomainIds;
         institution.PrimaryContactEmail = dto.PrimaryContactEmail;
         institution.IsActive = dto.IsActive;
         institution.AdminConsentGranted = dto.AdminConsentGranted;
@@ -131,11 +136,16 @@ public class InstitutionsController : ControllerBase
         var institution = await _institutionRepo.GetByIdAsync(id);
         if (institution == null) return NotFound();
 
+        // Capture user's bearer token before spawning background task (for OBO flow)
+        var userToken = ExtractBearerToken();
+
         _ = Task.Run(async () =>
         {
+            using var scope = _scopeFactory.CreateScope();
+            var orchestrator = scope.ServiceProvider.GetRequiredService<ISyncOrchestrator>();
             try
             {
-                await _syncOrchestrator.ScanInstitutionAsync(id);
+                await orchestrator.ScanInstitutionAsync(id, userToken);
             }
             catch (Exception ex)
             {
@@ -155,12 +165,22 @@ public class InstitutionsController : ControllerBase
         return Accepted(new { message = $"Scan triggered for {institution.Name}. Check sync history for results." });
     }
 
+    private string? ExtractBearerToken()
+    {
+        var authHeader = HttpContext.Request.Headers["Authorization"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            return authHeader.Substring("Bearer ".Length).Trim();
+        }
+        return null;
+    }
+
     private string? GetCurrentUserId() =>
         User.FindFirst("oid")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
     private static InstitutionDto MapToDto(Institution i) => new(
         i.Id, i.Name, i.TenantId, i.PurviewAccountName,
-        i.FabricWorkspaceId, i.PrimaryContactEmail,
+        i.FabricWorkspaceId, i.ConsortiumDomainIds, i.PrimaryContactEmail,
         i.IsActive, i.AdminConsentGranted,
         i.CreatedDate, i.ModifiedDate);
 }

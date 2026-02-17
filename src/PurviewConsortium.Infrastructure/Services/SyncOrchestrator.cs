@@ -31,7 +31,7 @@ public class SyncOrchestrator : ISyncOrchestrator
         _logger = logger;
     }
 
-    public async Task ScanAllInstitutionsAsync(CancellationToken cancellationToken = default)
+    public async Task ScanAllInstitutionsAsync(string? userAccessToken = null, CancellationToken cancellationToken = default)
     {
         var institutions = await _institutionRepo.GetAllAsync(activeOnly: true);
         _logger.LogInformation("Starting scan for {Count} active institutions", institutions.Count);
@@ -42,7 +42,7 @@ public class SyncOrchestrator : ISyncOrchestrator
 
             try
             {
-                await ScanInstitutionAsync(institution.Id, cancellationToken);
+                await ScanInstitutionAsync(institution.Id, userAccessToken, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -55,7 +55,7 @@ public class SyncOrchestrator : ISyncOrchestrator
         _logger.LogInformation("Completed scan of all institutions");
     }
 
-    public async Task ScanInstitutionAsync(Guid institutionId, CancellationToken cancellationToken = default)
+    public async Task ScanInstitutionAsync(Guid institutionId, string? userAccessToken = null, CancellationToken cancellationToken = default)
     {
         var institution = await _institutionRepo.GetByIdAsync(institutionId)
             ?? throw new InvalidOperationException($"Institution {institutionId} not found");
@@ -81,6 +81,8 @@ public class SyncOrchestrator : ISyncOrchestrator
             var scanResults = await _scanner.ScanForShareableDataProductsAsync(
                 institution.PurviewAccountName,
                 institution.TenantId,
+                userAccessToken,
+                institution.ConsortiumDomainIds,
                 cancellationToken);
 
             int added = 0, updated = 0;
@@ -108,7 +110,15 @@ public class SyncOrchestrator : ISyncOrchestrator
                         SensitivityLabel = result.SensitivityLabel,
                         IsListed = true,
                         LastSyncedFromPurview = DateTime.UtcNow,
-                        PurviewLastModified = result.PurviewLastModified
+                        PurviewLastModified = result.PurviewLastModified,
+                        Status = result.Status,
+                        DataProductType = result.DataProductType,
+                        GovernanceDomain = result.GovernanceDomain,
+                        AssetCount = result.AssetCount,
+                        BusinessUse = result.BusinessUse,
+                        Endorsed = result.Endorsed,
+                        UpdateFrequency = result.UpdateFrequency,
+                        Documentation = result.Documentation
                     };
                     var created = await _dataProductRepo.CreateAsync(product);
                     await _searchService.IndexDataProductAsync(created.Id, cancellationToken);
@@ -129,6 +139,14 @@ public class SyncOrchestrator : ISyncOrchestrator
                     existing.IsListed = true;
                     existing.LastSyncedFromPurview = DateTime.UtcNow;
                     existing.PurviewLastModified = result.PurviewLastModified;
+                    existing.Status = result.Status;
+                    existing.DataProductType = result.DataProductType;
+                    existing.GovernanceDomain = result.GovernanceDomain;
+                    existing.AssetCount = result.AssetCount;
+                    existing.BusinessUse = result.BusinessUse;
+                    existing.Endorsed = result.Endorsed;
+                    existing.UpdateFrequency = result.UpdateFrequency;
+                    existing.Documentation = result.Documentation;
                     await _dataProductRepo.UpdateAsync(existing);
                     await _searchService.IndexDataProductAsync(existing.Id, cancellationToken);
                     updated++;

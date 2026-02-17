@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+name: purview-consortium
+metadata:
+  template: purview-consortium@0.0.1
+services:
+  api:
+    project: ./src/PurviewConsortium.Api
+    language: csharp
+    host: appservice
+  web:
+    project: ./src/PurviewConsortium.Web
+    language: js
+    host: staticwebapp
+    dist: dist
+    hooks:
+      prebuild:
+        shell: sh
+        run: |
+          npm install
+          echo "VITE_AZURE_CLIENT_ID=${AZURE_AD_CLIENT_ID}" > .env.production
+          echo "VITE_AZURE_TENANT_ID=common" >> .env.production
+          echo "VITE_API_BASE_URL=${API_URL}" >> .env.production
+          echo "--- .env.production ---"
+          cat .env.production
+      build:
+        shell: sh
+        run: npm run build

@@ -9,7 +9,7 @@ public class AccessRequest
     public string RequestingUserId { get; set; } = string.Empty;
     public string RequestingUserEmail { get; set; } = string.Empty;
     public string RequestingUserName { get; set; } = string.Empty;
-    public Guid RequestingInstitutionId { get; set; }
+    public Guid? RequestingInstitutionId { get; set; }
     public string? TargetFabricWorkspaceId { get; set; }
     public string? TargetLakehouseName { get; set; }
     public string BusinessJustification { get; set; } = string.Empty;
@@ -24,5 +24,5 @@ public class AccessRequest
 
     // Navigation properties
     public DataProduct DataProduct { get; set; } = null!;
-    public Institution RequestingInstitution { get; set; } = null!;
+    public Institution? RequestingInstitution { get; set; }
 }

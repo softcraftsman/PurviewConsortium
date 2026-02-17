@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
 using PurviewConsortium.Infrastructure;
 using PurviewConsortium.Infrastructure.Data;
@@ -97,13 +98,21 @@ try
 
     var app = builder.Build();
 
-    // Seed the in-memory database in Development
-    if (isDev)
+    // Database initialization
+    using (var scope = app.Services.CreateScope())
     {
-        using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ConsortiumDbContext>();
-        db.Database.EnsureCreated();
-        Log.Information("Development in-memory database seeded");
+        if (isDev)
+        {
+            db.Database.EnsureCreated();
+            Log.Information("Development in-memory database seeded");
+        }
+        else
+        {
+            // Apply pending migrations to Azure SQL
+            db.Database.Migrate();
+            Log.Information("Database migrations applied");
+        }
     }
 
     // Middleware pipeline
@@ -121,10 +130,13 @@ try
     app.UseAuthorization();
     app.MapControllers();
 
+    // Health check endpoint (anonymous, used by Azure App Service)
+    app.MapGet("/healthz", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+
     Log.Information("Purview Consortium API starting...");
     app.Run();
 }
-catch (Exception ex)
+catch (Exception ex) when (ex is not HostAbortedException)
 {
     Log.Fatal(ex, "Application terminated unexpectedly");
 }

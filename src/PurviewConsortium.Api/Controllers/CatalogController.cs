@@ -125,6 +125,7 @@ public class CatalogController : ControllerBase
     }
 
     /// <summary>Get catalog statistics for the dashboard.</summary>
+    [AllowAnonymous]
     [HttpGet("stats")]
     public async Task<ActionResult<CatalogStatsDto>> GetStats()
     {

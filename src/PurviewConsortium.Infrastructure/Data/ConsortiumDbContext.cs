@@ -83,6 +83,7 @@ public class ConsortiumDbContext : DbContext
             entity.HasOne(e => e.RequestingInstitution)
                 .WithMany(i => i.IncomingRequests)
                 .HasForeignKey(e => e.RequestingInstitutionId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

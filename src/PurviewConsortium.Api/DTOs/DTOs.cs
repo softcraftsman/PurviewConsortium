@@ -10,6 +10,7 @@ public record InstitutionDto(
     string TenantId,
     string PurviewAccountName,
     string? FabricWorkspaceId,
+    string? ConsortiumDomainIds,
     string PrimaryContactEmail,
     bool IsActive,
     bool AdminConsentGranted,
@@ -21,12 +22,14 @@ public record CreateInstitutionDto(
     string TenantId,
     string PurviewAccountName,
     string? FabricWorkspaceId,
+    string? ConsortiumDomainIds,
     string PrimaryContactEmail);
 
 public record UpdateInstitutionDto(
     string Name,
     string PurviewAccountName,
     string? FabricWorkspaceId,
+    string? ConsortiumDomainIds,
     string PrimaryContactEmail,
     bool IsActive,
     bool AdminConsentGranted);
@@ -88,8 +91,8 @@ public record AccessRequestDto(
     string RequestingUserId,
     string RequestingUserEmail,
     string RequestingUserName,
-    Guid RequestingInstitutionId,
-    string RequestingInstitutionName,
+    Guid? RequestingInstitutionId,
+    string? RequestingInstitutionName,
     string? TargetFabricWorkspaceId,
     string? TargetLakehouseName,
     string BusinessJustification,
@@ -158,7 +161,7 @@ public record FulfillmentDetailsDto(
     string DataProductName,
     string SourceInstitutionName,
     string? SourceFabricWorkspaceId,
-    string RecipientTenantId,
+    string? RecipientTenantId,
     string RecipientUserEmail,
     string? TargetFabricWorkspaceId,
     string? TargetLakehouseName,
