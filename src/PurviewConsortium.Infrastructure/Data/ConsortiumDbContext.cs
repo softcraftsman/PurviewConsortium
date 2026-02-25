@@ -62,7 +62,7 @@ public class ConsortiumDbContext : DbContext
             entity.Property(e => e.RequestingUserEmail).HasMaxLength(256).IsRequired();
             entity.Property(e => e.RequestingUserName).HasMaxLength(256).IsRequired();
             entity.Property(e => e.TargetFabricWorkspaceId).HasMaxLength(128);
-            entity.Property(e => e.TargetLakehouseName).HasMaxLength(256);
+            entity.Property(e => e.TargetLakehouseItemId).HasMaxLength(256);
             entity.Property(e => e.BusinessJustification).HasMaxLength(4000).IsRequired();
             entity.Property(e => e.StatusChangedBy).HasMaxLength(256);
             entity.Property(e => e.ExternalShareId).HasMaxLength(256);

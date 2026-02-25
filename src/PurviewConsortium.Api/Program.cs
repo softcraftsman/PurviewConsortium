@@ -43,7 +43,8 @@ try
     }
 
     // Infrastructure layer (DbContext, repositories, services)
-    builder.Services.AddInfrastructure(builder.Configuration, useDevelopmentServices: isDev);
+    var useRealDb = builder.Configuration.GetValue<bool>("UseRealDatabase", false);
+    builder.Services.AddInfrastructure(builder.Configuration, useDevelopmentServices: isDev && !useRealDb);
 
     // Controllers + JSON
     builder.Services.AddControllers()
@@ -102,16 +103,19 @@ try
     using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<ConsortiumDbContext>();
-        if (isDev)
+        if (isDev && !useRealDb)
         {
             db.Database.EnsureCreated();
             Log.Information("Development in-memory database seeded");
         }
-        else
+        else if (!isDev)
         {
-            // Apply pending migrations to Azure SQL
             db.Database.Migrate();
             Log.Information("Database migrations applied");
+        }
+        else
+        {
+            Log.Warning("Using REAL database in Development mode — skipping migrations for safety");
         }
     }
 

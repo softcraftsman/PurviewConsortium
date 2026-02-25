@@ -117,10 +117,50 @@ public class CatalogController : ControllerBase
             product.InstitutionId,
             product.Institution.Name,
             product.Institution.PrimaryContactEmail,
+            product.SourceLakehouseItemId,
             product.PurviewLastModified,
             product.LastSyncedFromPurview,
             product.CreatedDate,
             currentRequest
+        ));
+    }
+
+    /// <summary>Update Fabric integration settings for a Data Product (admin).</summary>
+    [HttpPatch("products/{id:guid}/fabric")]
+    public async Task<ActionResult<DataProductDetailDto>> UpdateProductFabricSettings(
+        Guid id, [FromBody] UpdateDataProductFabricDto dto)
+    {
+        var product = await _dataProductRepo.GetByIdAsync(id);
+        if (product == null) return NotFound();
+
+        product.SourceLakehouseItemId = dto.SourceLakehouseItemId;
+        product.ModifiedDate = DateTime.UtcNow;
+        await _dataProductRepo.UpdateAsync(product);
+
+        _logger.LogInformation(
+            "Updated Data Product {ProductId} SourceLakehouseItemId to {ItemId}",
+            id, dto.SourceLakehouseItemId);
+
+        return Ok(new DataProductDetailDto(
+            product.Id,
+            product.PurviewQualifiedName,
+            product.Name,
+            product.Description,
+            product.Owner,
+            product.OwnerEmail,
+            product.SourceSystem,
+            product.SchemaJson,
+            product.GetClassifications(),
+            product.GetGlossaryTerms(),
+            product.SensitivityLabel,
+            product.InstitutionId,
+            product.Institution.Name,
+            product.Institution.PrimaryContactEmail,
+            product.SourceLakehouseItemId,
+            product.PurviewLastModified,
+            product.LastSyncedFromPurview,
+            product.CreatedDate,
+            null
         ));
     }
 

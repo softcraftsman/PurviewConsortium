@@ -49,6 +49,7 @@ export interface DataProductDetail extends DataProductListItem {
   ownerEmail?: string;
   schemaJson?: string;
   institutionContactEmail: string;
+  sourceLakehouseItemId?: string;
   lastSyncedFromPurview?: string;
   createdDate: string;
   currentUserRequest?: { requestId: string; status: string; createdDate: string };
@@ -71,13 +72,17 @@ export interface AccessRequest {
   requestingInstitutionId: string;
   requestingInstitutionName: string;
   targetFabricWorkspaceId?: string;
-  targetLakehouseName?: string;
+  targetLakehouseItemId?: string;
   businessJustification: string;
   requestedDurationDays?: number;
   status: string;
   statusChangedDate?: string;
   statusChangedBy?: string;
   externalShareId?: string;
+  fabricShortcutName?: string;
+  fabricShortcutCreated: boolean;
+  purviewWorkflowRunId?: string;
+  purviewWorkflowStatus?: string;
   expirationDate?: string;
   createdDate: string;
 }
@@ -89,6 +94,7 @@ export interface Institution {
   purviewAccountName: string;
   fabricWorkspaceId?: string;
   primaryContactEmail: string;
+  consortiumDomainIds?: string;
   isActive: boolean;
   adminConsentGranted: boolean;
   createdDate: string;
@@ -120,6 +126,18 @@ export interface SyncHistoryItem {
 
 // ----- API Functions -----
 
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  userId?: string;
+  userEmail?: string;
+  action: string;
+  entityType?: string;
+  entityId?: string;
+  detailsJson?: string;
+  ipAddress?: string;
+}
+
 export const catalogApi = {
   search: (params: Record<string, string>) =>
     api.get<CatalogSearchResponse>('/catalog/products', { params }),
@@ -134,13 +152,15 @@ export const catalogApi = {
       sensitivityLabels: string[];
       sourceSystems: string[];
     }>('/catalog/filters'),
+  updateProductFabric: (id: string, data: { sourceLakehouseItemId?: string }) =>
+    api.patch<DataProductDetail>(`/catalog/products/${id}/fabric`, data),
 };
 
 export const requestsApi = {
   create: (data: {
     dataProductId: string;
     targetFabricWorkspaceId?: string;
-    targetLakehouseName?: string;
+    targetLakehouseItemId?: string;
     businessJustification: string;
     requestedDurationDays?: number;
   }) => api.post<AccessRequest>('/requests', data),
@@ -150,6 +170,7 @@ export const requestsApi = {
   updateStatus: (id: string, data: { newStatus: string; comment?: string; externalShareId?: string }) =>
     api.patch<AccessRequest>(`/requests/${id}/status`, data),
   cancel: (id: string) => api.delete(`/requests/${id}`),
+  retryFulfillment: (id: string) => api.post<AccessRequest>(`/requests/${id}/retry-fulfillment`),
   getFulfillment: (id: string) => api.get(`/requests/${id}/fulfillment`),
 };
 
@@ -169,4 +190,13 @@ export const adminApi = {
   getSyncHistory: (params?: Record<string, string>) =>
     api.get<SyncHistoryItem[]>('/admin/sync/history', { params }),
   triggerFullScan: () => api.post('/admin/sync/trigger'),
+};
+
+export const logsApi = {
+  getRecent: (params?: { count?: number; action?: string }) =>
+    api.get<AuditLogEntry[]>('/admin/logs', { params }),
+  getByUser: (userId: string, count = 50) =>
+    api.get<AuditLogEntry[]>(`/admin/logs/user/${userId}`, { params: { count } }),
+  getActionTypes: () =>
+    api.get<string[]>('/admin/logs/actions'),
 };

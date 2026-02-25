@@ -8,3 +8,4 @@ dist/
 .env
 local.settings.json
 appsettings.Development.json
+publish/*

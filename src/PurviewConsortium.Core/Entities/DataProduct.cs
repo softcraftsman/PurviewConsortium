@@ -30,6 +30,9 @@ public class DataProduct
     public string? UpdateFrequency { get; set; }
     public string? Documentation { get; set; }
 
+    // Fabric integration — the lakehouse item that IS this data product's source asset
+    public string? SourceLakehouseItemId { get; set; }
+
     // Navigation properties
     public Institution Institution { get; set; } = null!;
     public ICollection<AccessRequest> AccessRequests { get; set; } = new List<AccessRequest>();

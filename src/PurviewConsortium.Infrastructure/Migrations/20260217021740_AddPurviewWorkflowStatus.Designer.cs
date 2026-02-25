@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PurviewConsortium.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using PurviewConsortium.Infrastructure.Data;
 namespace PurviewConsortium.Infrastructure.Migrations
 {
     [DbContext(typeof(ConsortiumDbContext))]
-    partial class ConsortiumDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260217021740_AddPurviewWorkflowStatus")]
+    partial class AddPurviewWorkflowStatus
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -46,12 +49,6 @@ namespace PurviewConsortium.Infrastructure.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
-                    b.Property<bool>("FabricShortcutCreated")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("FabricShortcutName")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<DateTime>("ModifiedDate")
                         .HasColumnType("datetime2");
 
@@ -66,9 +63,6 @@ namespace PurviewConsortium.Infrastructure.Migrations
 
                     b.Property<Guid?>("RequestingInstitutionId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("RequestingTenantId")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("RequestingUserEmail")
                         .IsRequired()
@@ -101,7 +95,7 @@ namespace PurviewConsortium.Infrastructure.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
-                    b.Property<string>("TargetLakehouseItemId")
+                    b.Property<string>("TargetLakehouseName")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
@@ -240,9 +234,6 @@ namespace PurviewConsortium.Infrastructure.Migrations
                     b.Property<string>("SensitivityLabel")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("SourceLakehouseItemId")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("SourceSystem")
                         .HasMaxLength(256)

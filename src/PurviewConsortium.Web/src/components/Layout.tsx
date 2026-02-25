@@ -17,6 +17,7 @@ import {
   DocumentBulletList24Regular,
   Building24Regular,
   BookQuestionMark24Regular,
+  ClipboardTextLtr24Regular,
 } from '@fluentui/react-icons';
 
 const useStyles = makeStyles({
@@ -74,7 +75,7 @@ export default function Layout({ children }: LayoutProps) {
   const account = accounts[0];
   const pathSegments = location.pathname.split('/');
   const currentPath = pathSegments[1] === 'admin'
-    ? '/admin/institutions'
+    ? '/admin/' + (pathSegments[2] || 'institutions')
     : pathSegments[1] === 'setup'
     ? '/setup'
     : '/' + pathSegments[1];
@@ -124,6 +125,9 @@ export default function Layout({ children }: LayoutProps) {
           </Tab>
           <Tab value="/admin/institutions" icon={<Building24Regular />}>
             Admin
+          </Tab>
+          <Tab value="/admin/logs" icon={<ClipboardTextLtr24Regular />}>
+            Logs
           </Tab>
           <Tab value="/setup" icon={<BookQuestionMark24Regular />}>
             Setup Guide

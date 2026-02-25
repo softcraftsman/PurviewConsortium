@@ -97,6 +97,18 @@ export default function DashboardPage() {
       <Button appearance="primary" onClick={() => navigate('/catalog')}>
         Browse Catalog
       </Button>
+
+      {/* Architecture Diagram */}
+      <div className={styles.section}>
+        <Text as="h2" size={600} weight="semibold" block>
+          Platform Architecture
+        </Text>
+        <img
+          src="/architecture-diagram.png"
+          alt="Purview Consortium Platform Architecture"
+          style={{ width: '100%', maxWidth: '1200px', marginTop: '12px', borderRadius: '8px' }}
+        />
+      </div>
     </div>
   );
 }

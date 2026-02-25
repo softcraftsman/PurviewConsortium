@@ -64,6 +64,7 @@ public record DataProductDetailDto(
     Guid InstitutionId,
     string InstitutionName,
     string InstitutionContactEmail,
+    string? SourceLakehouseItemId,
     DateTime? PurviewLastModified,
     DateTime? LastSyncedFromPurview,
     DateTime CreatedDate,
@@ -79,7 +80,7 @@ public record AccessRequestStatusDto(
 public record CreateAccessRequestDto(
     Guid DataProductId,
     string? TargetFabricWorkspaceId,
-    string? TargetLakehouseName,
+    string? TargetLakehouseItemId,
     string BusinessJustification,
     int? RequestedDurationDays);
 
@@ -94,13 +95,17 @@ public record AccessRequestDto(
     Guid? RequestingInstitutionId,
     string? RequestingInstitutionName,
     string? TargetFabricWorkspaceId,
-    string? TargetLakehouseName,
+    string? TargetLakehouseItemId,
     string BusinessJustification,
     int? RequestedDurationDays,
     RequestStatus Status,
     DateTime? StatusChangedDate,
     string? StatusChangedBy,
     string? ExternalShareId,
+    string? FabricShortcutName,
+    bool FabricShortcutCreated,
+    string? PurviewWorkflowRunId,
+    string? PurviewWorkflowStatus,
     DateTime? ExpirationDate,
     DateTime CreatedDate);
 
@@ -156,6 +161,21 @@ public record SyncHistoryDto(
 
 // --- Fulfillment DTOs ---
 
+// --- Audit Log DTOs ---
+
+public record AuditLogDto(
+    Guid Id,
+    DateTime Timestamp,
+    string? UserId,
+    string? UserEmail,
+    string Action,
+    string? EntityType,
+    string? EntityId,
+    string? DetailsJson,
+    string? IpAddress);
+
+// --- Fulfillment DTOs ---
+
 public record FulfillmentDetailsDto(
     Guid RequestId,
     string DataProductName,
@@ -164,5 +184,10 @@ public record FulfillmentDetailsDto(
     string? RecipientTenantId,
     string RecipientUserEmail,
     string? TargetFabricWorkspaceId,
-    string? TargetLakehouseName,
+    string? TargetLakehouseItemId,
     List<string> FulfillmentSteps);
+
+// --- Admin DTOs ---
+
+public record UpdateDataProductFabricDto(
+    string? SourceLakehouseItemId);

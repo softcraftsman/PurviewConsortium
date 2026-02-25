@@ -19,6 +19,7 @@ import DataProductDetailPage from './pages/DataProductDetailPage';
 import MyRequestsPage from './pages/MyRequestsPage';
 import InstitutionsPage from './pages/InstitutionsPage';
 import SetupGuidePage from './pages/SetupGuidePage';
+import LogsPage from './pages/LogsPage';
 import LoginPage from './pages/LoginPage';
 
 // In dev mode with placeholder client ID, bypass MSAL auth entirely
@@ -105,6 +106,7 @@ function AppRoutes() {
         <Route path="/catalog/:id" element={<DataProductDetailPage />} />
         <Route path="/requests" element={<MyRequestsPage />} />
         <Route path="/admin/institutions" element={<InstitutionsPage />} />
+        <Route path="/admin/logs" element={<LogsPage />} />
         <Route path="/setup" element={<SetupGuidePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PurviewConsortium.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using PurviewConsortium.Infrastructure.Data;
 namespace PurviewConsortium.Infrastructure.Migrations
 {
     [DbContext(typeof(ConsortiumDbContext))]
-    partial class ConsortiumDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260224114720_RenameToSourceAndTargetLakehouseIds")]
+    partial class RenameToSourceAndTargetLakehouseIds
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

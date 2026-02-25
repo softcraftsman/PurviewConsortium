@@ -76,6 +76,12 @@ public class InstitutionsController : ControllerBase
             Action = AuditAction.RegisterInstitution,
             EntityType = nameof(Institution),
             EntityId = created.Id.ToString(),
+            DetailsJson = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                Name = created.Name,
+                PurviewAccount = created.PurviewAccountName,
+                Contact = created.PrimaryContactEmail
+            }),
             IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
         });
 
@@ -105,6 +111,12 @@ public class InstitutionsController : ControllerBase
             Action = AuditAction.UpdateInstitution,
             EntityType = nameof(Institution),
             EntityId = id.ToString(),
+            DetailsJson = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                Name = updated.Name,
+                IsActive = updated.IsActive,
+                PurviewAccount = updated.PurviewAccountName
+            }),
             IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
         });
 

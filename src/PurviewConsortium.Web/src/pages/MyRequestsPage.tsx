@@ -11,8 +11,15 @@ import {
   TableRow,
   TableBody,
   TableCell,
+  Tooltip,
+  MessageBar,
+  MessageBarBody,
 } from '@fluentui/react-components';
-import { Delete24Regular } from '@fluentui/react-icons';
+import {
+  Delete24Regular,
+  ArrowSync24Regular,
+  PlugConnected24Regular,
+} from '@fluentui/react-icons';
 import { requestsApi, type AccessRequest } from '../api';
 
 const useStyles = makeStyles({
@@ -54,6 +61,13 @@ export default function MyRequestsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['myRequests'] }),
   });
 
+  const retryFulfillmentMutation = useMutation({
+    mutationFn: (id: string) => requestsApi.retryFulfillment(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['myRequests'] }),
+  });
+
+  const retryError = retryFulfillmentMutation.error as any;
+
   if (isLoading) return <Spinner label="Loading requests..." />;
 
   return (
@@ -65,6 +79,14 @@ export default function MyRequestsPage() {
         Track the status of your data access requests.
       </Text>
 
+      {retryError && (
+        <MessageBar intent="error" style={{ marginBottom: '12px' }}>
+          <MessageBarBody>
+            Shortcut creation failed: {retryError?.response?.data || retryError?.message || 'Unknown error'}
+          </MessageBarBody>
+        </MessageBar>
+      )}
+
       {requests && requests.length > 0 ? (
         <Table className={styles.table}>
           <TableHeader>
@@ -72,6 +94,8 @@ export default function MyRequestsPage() {
               <TableHeaderCell>Data Product</TableHeaderCell>
               <TableHeaderCell>Institution</TableHeaderCell>
               <TableHeaderCell>Status</TableHeaderCell>
+              <TableHeaderCell>Purview Workflow</TableHeaderCell>
+              <TableHeaderCell>Fabric Shortcut</TableHeaderCell>
               <TableHeaderCell>Submitted</TableHeaderCell>
               <TableHeaderCell>Actions</TableHeaderCell>
             </TableRow>
@@ -89,6 +113,49 @@ export default function MyRequestsPage() {
                   </Badge>
                 </TableCell>
                 <TableCell>
+                  {req.purviewWorkflowRunId ? (
+                    <Tooltip content={`Run ID: ${req.purviewWorkflowRunId}`} relationship="label">
+                      <Badge
+                        appearance="tint"
+                        color={
+                          req.purviewWorkflowStatus === 'Completed' ? 'success' :
+                          req.purviewWorkflowStatus === 'Failed' ? 'danger' :
+                          req.purviewWorkflowStatus === 'Canceled' ? 'informative' :
+                          'brand'
+                        }
+                        icon={<ArrowSync24Regular />}
+                      >
+                        {req.purviewWorkflowStatus || 'Submitted'}
+                      </Badge>
+                    </Tooltip>
+                  ) : (
+                    <Text size={200} style={{ opacity: 0.5 }}>—</Text>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {req.fabricShortcutCreated ? (
+                    <Tooltip content={`Shortcut: ${req.fabricShortcutName || 'Created'}`} relationship="label">
+                      <Badge appearance="filled" color="success" icon={<PlugConnected24Regular />}>
+                        {req.fabricShortcutName || 'Created'}
+                      </Badge>
+                    </Tooltip>
+                  ) : req.externalShareId ? (
+                    <Tooltip content={`External share created (ID: ${req.externalShareId}). Shortcut pending.`} relationship="label">
+                      <Badge appearance="tint" color="warning">
+                        Share Only
+                      </Badge>
+                    </Tooltip>
+                  ) : req.status === 'Fulfilled' || req.status === 'Active' ? (
+                    <Tooltip content="Fulfilled manually (no automated shortcut)" relationship="label">
+                      <Badge appearance="tint" color="informative">
+                        Manual
+                      </Badge>
+                    </Tooltip>
+                  ) : (
+                    <Text size={200} style={{ opacity: 0.5 }}>—</Text>
+                  )}
+                </TableCell>
+                <TableCell>
                   {new Date(req.createdDate).toLocaleDateString()}
                 </TableCell>
                 <TableCell>
@@ -101,6 +168,18 @@ export default function MyRequestsPage() {
                     >
                       Cancel
                     </Button>
+                  )}
+                  {req.status === 'Approved' && !req.fabricShortcutCreated && (
+                    <Tooltip content="Retry automated Fabric shortcut creation" relationship="label">
+                      <Button
+                        appearance="subtle"
+                        icon={<PlugConnected24Regular />}
+                        onClick={() => retryFulfillmentMutation.mutate(req.id)}
+                        disabled={retryFulfillmentMutation.isPending}
+                      >
+                        Create Shortcut
+                      </Button>
+                    </Tooltip>
                   )}
                 </TableCell>
               </TableRow>

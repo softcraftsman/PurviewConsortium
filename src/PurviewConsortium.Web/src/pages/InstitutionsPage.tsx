@@ -31,6 +31,7 @@ import {
   Link24Regular,
   CheckmarkCircle24Regular,
   DismissCircle24Regular,
+  Edit24Regular,
 } from '@fluentui/react-icons';
 import { adminApi, type Institution, type SyncHistoryItem } from '../api';
 
@@ -49,6 +50,16 @@ export default function InstitutionsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Institution | null>(null);
   const [createdInstitution, setCreatedInstitution] = useState<{ name: string; tenantId: string } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<Institution | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    purviewAccountName: '',
+    fabricWorkspaceId: '',
+    primaryContactEmail: '',
+    consortiumDomainIds: '',
+    isActive: true,
+    adminConsentGranted: false,
+  });
 
   const clientId = import.meta.env.VITE_AZURE_CLIENT_ID || '';
   const redirectUri = window.location.origin;
@@ -117,10 +128,45 @@ export default function InstitutionsPage() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: () =>
+      adminApi.updateInstitution(editTarget!.id, {
+        name: editForm.name,
+        purviewAccountName: editForm.purviewAccountName,
+        fabricWorkspaceId: editForm.fabricWorkspaceId,
+        primaryContactEmail: editForm.primaryContactEmail,
+        consortiumDomainIds: editForm.consortiumDomainIds || undefined,
+        isActive: editForm.isActive,
+        adminConsentGranted: editForm.adminConsentGranted,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['institutions'] });
+      setEditTarget(null);
+    },
+  });
+
+  const openEdit = (inst: Institution) => {
+    setEditForm({
+      name: inst.name,
+      purviewAccountName: inst.purviewAccountName ?? '',
+      fabricWorkspaceId: inst.fabricWorkspaceId ?? '',
+      primaryContactEmail: inst.primaryContactEmail,
+      consortiumDomainIds: inst.consortiumDomainIds ?? '',
+      isActive: inst.isActive,
+      adminConsentGranted: inst.adminConsentGranted,
+    });
+    setEditTarget(inst);
+  };
+
   const handleFieldChange = (field: keyof typeof form) => (
     _: unknown,
     data: { value: string }
   ) => setForm((prev) => ({ ...prev, [field]: data.value }));
+
+  const handleEditFieldChange = (field: keyof typeof editForm) => (
+    _: unknown,
+    data: { value: string } | { checked: boolean }
+  ) => setEditForm((prev) => ({ ...prev, [field]: 'value' in data ? data.value : data.checked }));
 
   const isFormValid =
     form.name.trim() !== '' &&
@@ -277,8 +323,94 @@ export default function InstitutionsPage() {
         </DialogSurface>
       </Dialog>
 
-      {/* Post-creation Admin Consent Link Dialog */}
-      <Dialog open={createdInstitution !== null} onOpenChange={(_, data) => { if (!data.open) setCreatedInstitution(null); }}>
+      {/* Edit Institution Dialog */}
+      <Dialog open={editTarget !== null} onOpenChange={(_, data) => { if (!data.open) setEditTarget(null); }}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Edit Institution — {editTarget?.name}</DialogTitle>
+            <DialogContent>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingTop: '8px' }}>
+                <Field label="Institution Name" required>
+                  <Input
+                    value={editForm.name}
+                    onChange={handleEditFieldChange('name')}
+                    placeholder="e.g. Contoso University"
+                  />
+                </Field>
+                <Field label="Purview Account Name" required>
+                  <Input
+                    value={editForm.purviewAccountName}
+                    onChange={handleEditFieldChange('purviewAccountName')}
+                    placeholder="e.g. contoso-purview"
+                  />
+                </Field>
+                <Field label="Fabric Workspace ID">
+                  <Input
+                    value={editForm.fabricWorkspaceId}
+                    onChange={handleEditFieldChange('fabricWorkspaceId')}
+                    placeholder="Optional — used for OneLake shortcut guidance"
+                  />
+                </Field>
+                <Field label="Primary Contact Email" required>
+                  <Input
+                    value={editForm.primaryContactEmail}
+                    onChange={handleEditFieldChange('primaryContactEmail')}
+                    placeholder="e.g. admin@contoso.edu"
+                    type="email"
+                  />
+                </Field>
+                <Field label="Consortium Domain IDs">
+                  <Input
+                    value={editForm.consortiumDomainIds}
+                    onChange={handleEditFieldChange('consortiumDomainIds')}
+                    placeholder="Comma-separated Purview domain GUIDs"
+                  />
+                </Field>
+                <div style={{ display: 'flex', gap: '24px', paddingTop: '4px' }}>
+                  <Field label="Active">
+                    <input
+                      type="checkbox"
+                      checked={editForm.isActive}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, isActive: e.target.checked }))}
+                      style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                    />
+                  </Field>
+                  <Field label="Admin Consent Granted">
+                    <input
+                      type="checkbox"
+                      checked={editForm.adminConsentGranted}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, adminConsentGranted: e.target.checked }))}
+                      style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                    />
+                  </Field>
+                </div>
+                {updateMutation.isError && (
+                  <Text style={{ color: tokens.colorPaletteRedForeground1 }}>
+                    Failed to update institution. Please try again.
+                  </Text>
+                )}
+              </div>
+            </DialogContent>
+            <DialogActions>
+              <Button appearance="secondary" onClick={() => setEditTarget(null)}>Cancel</Button>
+              <Button
+                appearance="primary"
+                onClick={() => updateMutation.mutate()}
+                disabled={
+                  !editForm.name.trim() ||
+                  !editForm.purviewAccountName.trim() ||
+                  !editForm.primaryContactEmail.trim() ||
+                  updateMutation.isPending
+                }
+              >
+                {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+
+      {/* Post-creation Admin Consent Link Dialog */}      <Dialog open={createdInstitution !== null} onOpenChange={(_, data) => { if (!data.open) setCreatedInstitution(null); }}>
         <DialogSurface>
           <DialogBody>
             <DialogTitle>Institution Created</DialogTitle>
@@ -367,6 +499,15 @@ export default function InstitutionsPage() {
               </TableCell>
               <TableCell>
                 <div style={{ display: 'flex', gap: '4px' }}>
+                  <Button
+                    appearance="subtle"
+                    icon={<Edit24Regular />}
+                    onClick={() => openEdit(inst)}
+                    title="Edit institution"
+                    size="small"
+                  >
+                    Edit
+                  </Button>
                   <Button
                     appearance="subtle"
                     icon={<Copy24Regular />}

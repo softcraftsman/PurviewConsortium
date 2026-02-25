@@ -36,6 +36,8 @@ public static class DependencyInjection
 
         // Services
         services.AddScoped<IPurviewScannerService, PurviewScannerService>();
+        services.AddScoped<IPurviewWorkflowService, PurviewWorkflowService>();
+        services.AddScoped<IFabricShortcutService, FabricShortcutService>();
         services.AddScoped<ISyncOrchestrator, SyncOrchestrator>();
         services.AddScoped<INotificationService, EmailNotificationService>();
 
