@@ -47,7 +47,8 @@ public record DataProductListDto(
     List<string> GlossaryTerms,
     Guid InstitutionId,
     string InstitutionName,
-    DateTime? PurviewLastModified);
+    DateTime? PurviewLastModified,
+    int AssetCount);
 
 public record DataProductDetailDto(
     Guid Id,
@@ -68,7 +69,8 @@ public record DataProductDetailDto(
     DateTime? PurviewLastModified,
     DateTime? LastSyncedFromPurview,
     DateTime CreatedDate,
-    AccessRequestStatusDto? CurrentUserRequest);
+    AccessRequestStatusDto? CurrentUserRequest,
+    int AssetCount);
 
 public record AccessRequestStatusDto(
     Guid RequestId,

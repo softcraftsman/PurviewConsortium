@@ -169,6 +169,7 @@ export default function DataProductDetailPage() {
           <MetaField label="Owner Email" value={product.ownerEmail} />
           <MetaField label="Source System" value={product.sourceSystem} />
           <MetaField label="Sensitivity Label" value={product.sensitivityLabel} />
+          <MetaField label="Data Assets" value={product.assetCount.toString()} />
           <MetaField label="Contact" value={product.institutionContactEmail} />
           <MetaField
             label="Source Lakehouse Item ID"

@@ -42,6 +42,7 @@ export interface DataProductListItem {
   institutionId: string;
   institutionName: string;
   purviewLastModified?: string;
+  assetCount: number;
 }
 
 export interface DataProductDetail extends DataProductListItem {

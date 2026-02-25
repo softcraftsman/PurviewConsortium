@@ -72,7 +72,7 @@ public class CatalogController : ControllerBase
             Items: result.Items.Select(i => new DataProductListDto(
                 i.Id, i.Name, i.Description, i.Owner, i.SourceSystem,
                 i.SensitivityLabel, i.Classifications, i.GlossaryTerms,
-                i.InstitutionId, i.InstitutionName, i.PurviewLastModified
+                i.InstitutionId, i.InstitutionName, i.PurviewLastModified, i.AssetCount
             )).ToList(),
             TotalCount: result.TotalCount,
             Facets: result.Facets.ToDictionary(
@@ -121,7 +121,8 @@ public class CatalogController : ControllerBase
             product.PurviewLastModified,
             product.LastSyncedFromPurview,
             product.CreatedDate,
-            currentRequest
+            currentRequest,
+            product.AssetCount
         ));
     }
 
@@ -160,7 +161,8 @@ public class CatalogController : ControllerBase
             product.PurviewLastModified,
             product.LastSyncedFromPurview,
             product.CreatedDate,
-            null
+            null,
+            product.AssetCount
         ));
     }
 

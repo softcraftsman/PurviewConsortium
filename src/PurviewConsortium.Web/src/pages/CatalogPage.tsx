@@ -205,6 +205,11 @@ function ProductCard({
           <Text size={300} truncate block style={{ maxWidth: '100%' }}>
             {product.description || 'No description available.'}
           </Text>
+          {product.assetCount > 0 && (
+            <Text size={200} style={{ marginTop: '8px', display: 'block' }}>
+              {product.assetCount} Data Asset{product.assetCount !== 1 ? 's' : ''}
+            </Text>
+          )}
           <div className={styles.badges}>
             {product.sensitivityLabel && (
               <Badge appearance="outline" color="danger" size="small">
