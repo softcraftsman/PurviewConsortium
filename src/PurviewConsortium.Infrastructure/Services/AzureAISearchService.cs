@@ -184,6 +184,7 @@ public class AzureAISearchService : ICatalogSearchService
             ["institutionId"] = product.InstitutionId.ToString(),
             ["institutionName"] = product.Institution?.Name ?? "",
             ["isListed"] = product.IsListed,
+            ["assetCount"] = product.AssetCount,
             ["purviewLastModified"] = product.PurviewLastModified
         };
 
@@ -225,6 +226,7 @@ public class AzureAISearchService : ICatalogSearchService
                     ["institutionId"] = product.InstitutionId.ToString(),
                     ["institutionName"] = institution.Name,
                     ["isListed"] = product.IsListed,
+                    ["assetCount"] = product.AssetCount,
                     ["purviewLastModified"] = product.PurviewLastModified
                 });
             }
@@ -251,7 +253,8 @@ public class AzureAISearchService : ICatalogSearchService
                 new SearchableField("classifications", collection: true) { IsFilterable = true, IsFacetable = true },
                 new SearchableField("glossaryTerms", collection: true) { IsFilterable = true, IsFacetable = true },
                 new SimpleField("institutionId", SearchFieldDataType.String) { IsFilterable = true },
-                new SimpleField("institutionName", SearchFieldDataType.String) { IsFilterable = true, IsFacetable = true, IsSortable = true },
+                new SimpleField("isListed", SearchFieldDataType.Boolean) { IsFilterable = true },
+                new SimpleField("assetCount", SearchFieldDataType.Int32) { IsFilterable = true, IsSortable = true },
                 new SimpleField("isListed", SearchFieldDataType.Boolean) { IsFilterable = true },
                 new SimpleField("purviewLastModified", SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true }
             }
