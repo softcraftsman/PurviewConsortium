@@ -128,7 +128,8 @@ public class InMemoryCatalogSearchService : ICatalogSearchService
                 GlossaryTerms = p.GetGlossaryTerms(),
                 InstitutionId = p.InstitutionId,
                 InstitutionName = p.Institution?.Name ?? "Unknown",
-                PurviewLastModified = p.PurviewLastModified
+                PurviewLastModified = p.PurviewLastModified,
+                AssetCount = p.AssetCount
             }).ToList()
         };
     }

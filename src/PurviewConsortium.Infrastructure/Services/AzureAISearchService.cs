@@ -145,6 +145,9 @@ public class AzureAISearchService : ICatalogSearchService
                 PurviewLastModified = doc.Document.ContainsKey("purviewLastModified")
                     ? doc.Document.GetDateTimeOffset("purviewLastModified")?.UtcDateTime
                     : null,
+                AssetCount = doc.Document.ContainsKey("assetCount")
+                    ? (int)(doc.Document["assetCount"] is long l ? l : Convert.ToInt64(doc.Document["assetCount"]))
+                    : 0,
                 SearchScore = doc.Score
             });
         }

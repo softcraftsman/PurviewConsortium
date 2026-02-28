@@ -101,6 +101,11 @@ public class AccessRequestsController : ControllerBase
                     institution.TenantId,
                     product.Name,
                     dto.BusinessJustification,
+                    request.RequestingUserEmail,
+                    request.RequestingUserName,
+                    tenantId ?? "",
+                    dto.TargetFabricWorkspaceId,
+                    dto.TargetLakehouseItemId,
                     userToken);
 
                 if (workflowResult.Success)

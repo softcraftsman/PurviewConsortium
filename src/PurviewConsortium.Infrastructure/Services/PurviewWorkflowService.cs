@@ -42,6 +42,11 @@ public class PurviewWorkflowService : IPurviewWorkflowService
         string tenantId,
         string dataProductName,
         string businessJustification,
+        string requestingUserEmail,
+        string requestingUserName,
+        string requestingTenantId,
+        string? targetWorkspaceId,
+        string? targetLakehouseId,
         string? userAccessToken = null,
         CancellationToken cancellationToken = default)
     {
@@ -80,7 +85,10 @@ public class PurviewWorkflowService : IPurviewWorkflowService
             // Step 2: Submit the GrantDataAccess workflow request
             var workflowRunId = await SubmitWorkflowRequestAsync(
                 httpClient, accessToken, purviewEndpoint,
-                assetGuid, businessJustification, cancellationToken);
+                assetGuid, businessJustification,
+                requestingUserEmail, requestingUserName, requestingTenantId,
+                targetWorkspaceId, targetLakehouseId,
+                cancellationToken);
 
             _logger.LogInformation(
                 "Purview workflow request submitted successfully. WorkflowRunId: {RunId}",
@@ -184,9 +192,20 @@ public class PurviewWorkflowService : IPurviewWorkflowService
         string purviewEndpoint,
         string dataAssetGuid,
         string businessJustification,
+        string requestingUserEmail,
+        string requestingUserName,
+        string requestingTenantId,
+        string? targetWorkspaceId,
+        string? targetLakehouseId,
         CancellationToken cancellationToken)
     {
         var workflowUrl = $"{purviewEndpoint}/workflow/userrequests?api-version={WorkflowApiVersion}";
+
+        var comment = $"Access request submitted via Purview Consortium platform. " +
+                      $"Requester: {requestingUserName} ({requestingUserEmail}), " +
+                      $"Tenant: {requestingTenantId}" +
+                      (string.IsNullOrEmpty(targetWorkspaceId) ? "" : $", Target Workspace: {targetWorkspaceId}") +
+                      (string.IsNullOrEmpty(targetLakehouseId) ? "" : $", Target Lakehouse: {targetLakehouseId}");
 
         var payload = new
         {
@@ -194,17 +213,21 @@ public class PurviewWorkflowService : IPurviewWorkflowService
             {
                 new
                 {
-                    // TODO: What other payload items could I provide here. 
                     type = "GrantDataAccess",
                     payload = new Dictionary<string, object>
                     {
                         ["note"] = businessJustification,
                         ["purviewDataRole"] = "DataReader",
-                        ["dataAssetGuid"] = dataAssetGuid
+                        ["dataAssetGuid"] = dataAssetGuid,
+                        ["requestorEmail"] = requestingUserEmail,
+                        ["requestorName"] = requestingUserName,
+                        ["requestorTenantId"] = requestingTenantId,
+                        ["targetFabricWorkspaceId"] = targetWorkspaceId ?? "",
+                        ["targetLakehouseId"] = targetLakehouseId ?? ""
                     }
                 }
             },
-            comment = $"Access request submitted via Purview Consortium platform"
+            comment
         };
 
         var request = new HttpRequestMessage(HttpMethod.Post, workflowUrl)

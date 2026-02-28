@@ -72,15 +72,16 @@ public class PurviewScannerService : IPurviewScannerService
                 // Filter by governance domain if configured
                 if (domainFilter.Count > 0)
                 {
-                    var dpDomain = dp.TryGetProperty("domain", out var domainVal) && domainVal.ValueKind == JsonValueKind.String
-                        ? domainVal.GetString()
-                        : null;
+                    // Extract domain ID — check "governanceDomain" and "domain",
+                    // each may be an object with "id"/"name" or a plain string
+                    var dpDomainId = ExtractDomainId(dp, "governanceDomain")
+                                 ?? ExtractDomainId(dp, "domain");
 
-                    if (dpDomain == null || !domainFilter.Contains(dpDomain))
+                    if (dpDomainId == null || !domainFilter.Contains(dpDomainId))
                     {
                         var dpName = dp.TryGetProperty("name", out var nameVal) ? nameVal.GetString() : "unknown";
                         _logger.LogDebug("Skipping Data Product '{Name}' — domain {Domain} not in consortium filter",
-                            dpName, dpDomain);
+                            dpName, dpDomainId);
                         continue;
                     }
                 }
@@ -220,31 +221,29 @@ public class PurviewScannerService : IPurviewScannerService
 
     /// <summary>
     /// Maps a Unified Catalog Data Product JSON element to a DataProductSyncResult.
+    /// The Purview Data Products API may use different property names/shapes across versions:
+    ///   - Owner info: "owners" array (primary) or "contacts" array (fallback)
+    ///   - Sensitivity label: object {"id","name"} or plain string
+    ///   - Domain: "governanceDomain" or "domain", as object {"id","name"} or plain string
     /// </summary>
     private static DataProductSyncResult MapDataProductToSyncResult(JsonElement dp)
     {
-        // Extract owner from contacts array
+        // Extract owner from owners array (primary) or contacts array (fallback)
         string? owner = null;
         string? ownerEmail = null;
-        if (dp.TryGetProperty("contacts", out var contacts) &&
-            contacts.ValueKind == JsonValueKind.Array)
+        owner = ExtractOwnerFromArray(dp, "owners", out ownerEmail);
+        if (string.IsNullOrEmpty(owner))
         {
-            foreach (var contact in contacts.EnumerateArray())
-            {
-                owner = GetStringProperty(contact, "displayName", "name");
-                ownerEmail = GetStringProperty(contact, "mail", "email");
-                if (!string.IsNullOrEmpty(owner))
-                    break;
-            }
+            owner = ExtractOwnerFromArray(dp, "contacts", out ownerEmail);
         }
 
-        // Extract governance domain name
-        string? domain = null;
-        if (dp.TryGetProperty("domain", out var domainObj) &&
-            domainObj.ValueKind == JsonValueKind.Object)
-        {
-            domain = GetStringProperty(domainObj, "name");
-        }
+        // Extract governance domain name — try "governanceDomain" then "domain",
+        // each may be an object {"id":"...","name":"..."} or a plain string
+        string? domain = ExtractDomainName(dp, "governanceDomain")
+                      ?? ExtractDomainName(dp, "domain");
+
+        // Extract sensitivity label — may be object {"id":"...","name":"..."} or plain string
+        string? sensitivityLabel = ExtractStringOrObjectName(dp, "sensitivityLabel");
 
         // Extract asset count from additionalProperties
         int assetCount = 0;
@@ -261,6 +260,13 @@ public class PurviewScannerService : IPurviewScannerService
             }
         }
 
+        // Also check top-level assetCount
+        if (assetCount == 0 && dp.TryGetProperty("assetCount", out var topLevelAssetCount))
+        {
+            if (topLevelAssetCount.ValueKind == JsonValueKind.Number)
+                assetCount = topLevelAssetCount.GetInt32();
+        }
+
         // Extract last modified from systemData
         DateTime? lastModified = null;
         if (dp.TryGetProperty("systemData", out var systemData) &&
@@ -274,7 +280,7 @@ public class PurviewScannerService : IPurviewScannerService
             }
         }
 
-        // Check endorsed status
+        // Check endorsed status — may be bool or object
         bool endorsed = dp.TryGetProperty("endorsed", out var endorsedVal) &&
                         endorsedVal.ValueKind == JsonValueKind.True;
 
@@ -297,7 +303,7 @@ public class PurviewScannerService : IPurviewScannerService
             SchemaJson = null,
             Classifications = classifications,
             GlossaryTerms = new List<string>(),
-            SensitivityLabel = GetStringProperty(dp, "sensitivityLabel"),
+            SensitivityLabel = sensitivityLabel,
             PurviewLastModified = lastModified,
             Status = dpStatus,
             DataProductType = dpType,
@@ -308,6 +314,84 @@ public class PurviewScannerService : IPurviewScannerService
             UpdateFrequency = GetStringProperty(dp, "updateFrequency"),
             Documentation = GetStringProperty(dp, "documentation")
         };
+    }
+
+    /// <summary>
+    /// Extracts owner display name and email from a named array property (e.g. "owners" or "contacts").
+    /// Handles both {displayName, mail} and {name, email} property names.
+    /// </summary>
+    private static string? ExtractOwnerFromArray(JsonElement dp, string arrayPropertyName, out string? email)
+    {
+        email = null;
+        if (dp.TryGetProperty(arrayPropertyName, out var array) &&
+            array.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in array.EnumerateArray())
+            {
+                var name = GetStringProperty(item, "displayName", "name");
+                var mail = GetStringProperty(item, "mail", "email", "userPrincipalName");
+                if (!string.IsNullOrEmpty(name) || !string.IsNullOrEmpty(mail))
+                {
+                    email = mail;
+                    return name ?? mail; // Fall back to email if no display name
+                }
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Extracts a domain/governance domain name from a property that may be
+    /// an object {"id":"...","name":"..."} or a plain string.
+    /// </summary>
+    private static string? ExtractDomainName(JsonElement dp, string propertyName)
+    {
+        if (!dp.TryGetProperty(propertyName, out var domainVal))
+            return null;
+
+        if (domainVal.ValueKind == JsonValueKind.Object)
+            return GetStringProperty(domainVal, "name", "displayName");
+
+        if (domainVal.ValueKind == JsonValueKind.String)
+            return domainVal.GetString();
+
+        return null;
+    }
+
+    /// <summary>
+    /// Extracts a domain ID for filtering. If the property is an object, returns "id";
+    /// if it's a string, returns the string value (assumed to be a domain ID or name).
+    /// </summary>
+    private static string? ExtractDomainId(JsonElement dp, string propertyName)
+    {
+        if (!dp.TryGetProperty(propertyName, out var domainVal))
+            return null;
+
+        if (domainVal.ValueKind == JsonValueKind.Object)
+            return GetStringProperty(domainVal, "id", "name");
+
+        if (domainVal.ValueKind == JsonValueKind.String)
+            return domainVal.GetString();
+
+        return null;
+    }
+
+    /// <summary>
+    /// Extracts a value from a property that may be a plain string or
+    /// an object with a "name" property (e.g. sensitivityLabel).
+    /// </summary>
+    private static string? ExtractStringOrObjectName(JsonElement dp, string propertyName)
+    {
+        if (!dp.TryGetProperty(propertyName, out var val))
+            return null;
+
+        if (val.ValueKind == JsonValueKind.String)
+            return val.GetString();
+
+        if (val.ValueKind == JsonValueKind.Object)
+            return GetStringProperty(val, "name", "displayName", "labelName");
+
+        return null;
     }
 
     private static string? GetStringProperty(JsonElement element, params string[] propertyNames)

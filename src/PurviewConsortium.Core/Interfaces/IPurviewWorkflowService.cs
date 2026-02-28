@@ -45,6 +45,11 @@ public interface IPurviewWorkflowService
         string tenantId,
         string dataProductName,
         string businessJustification,
+        string requestingUserEmail,
+        string requestingUserName,
+        string requestingTenantId,
+        string? targetWorkspaceId,
+        string? targetLakehouseId,
         string? userAccessToken = null,
         CancellationToken cancellationToken = default);
 
