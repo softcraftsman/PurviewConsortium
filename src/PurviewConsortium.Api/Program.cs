@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
+using System.Text.Json;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using PurviewConsortium.Infrastructure;
 using PurviewConsortium.Infrastructure.Data;
 using Serilog;
@@ -24,13 +26,14 @@ try
         .WriteTo.Console());
 
     // Authentication
-    if (isDev)
+    var useEntraAuth = builder.Configuration.GetValue<bool>("UseEntraAuth", false);
+    if (isDev && !useEntraAuth)
     {
         // Development: use a fake auth handler so the API works without Entra ID
         builder.Services.AddAuthentication("DevScheme")
             .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>("DevScheme", null);
         builder.Services.AddAuthorization();
-        Log.Warning("Running in DEVELOPMENT mode — authentication is bypassed with a fake user");
+        Log.Warning("Running in DEVELOPMENT mode — authentication is bypassed with a fake user. Set UseEntraAuth=true to use real Entra ID.");
     }
     else
     {
@@ -40,11 +43,17 @@ try
                 p.RequireClaim("roles", "Consortium.Admin"))
             .AddPolicy("RequireInstitutionAdmin", p =>
                 p.RequireClaim("roles", "Institution.Admin", "Consortium.Admin"));
+        if (isDev)
+            Log.Information("Running in DEVELOPMENT mode with real Entra ID authentication");
     }
 
     // Infrastructure layer (DbContext, repositories, services)
     var useRealDb = builder.Configuration.GetValue<bool>("UseRealDatabase", false);
     builder.Services.AddInfrastructure(builder.Configuration, useDevelopmentServices: isDev && !useRealDb);
+
+    // Health checks (verifies SQL / in-memory DB connectivity)
+    builder.Services.AddHealthChecks()
+        .AddDbContextCheck<ConsortiumDbContext>("database", HealthStatus.Unhealthy);
 
     // Controllers + JSON
     builder.Services.AddControllers()
@@ -135,7 +144,28 @@ try
     app.MapControllers();
 
     // Health check endpoint (anonymous, used by Azure App Service)
-    app.MapGet("/healthz", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+    app.MapHealthChecks("/healthz", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+    {
+        ResponseWriter = async (context, report) =>
+        {
+            context.Response.ContentType = "application/json";
+            var result = new
+            {
+                status = report.Status.ToString().ToLowerInvariant(),
+                timestamp = DateTime.UtcNow,
+                checks = report.Entries.Select(e => new
+                {
+                    name = e.Key,
+                    status = e.Value.Status.ToString().ToLowerInvariant(),
+                    description = e.Value.Description,
+                    duration = e.Value.Duration.TotalMilliseconds + "ms",
+                    exception = e.Value.Exception?.Message,
+                }),
+            };
+            await context.Response.WriteAsync(JsonSerializer.Serialize(result,
+                new JsonSerializerOptions { WriteIndented = true }));
+        }
+    }).AllowAnonymous();
 
     Log.Information("Purview Consortium API starting...");
     app.Run();
