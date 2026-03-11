@@ -81,7 +81,17 @@ public class AccessRequestsController : ControllerBase
             BusinessJustification = dto.BusinessJustification,
             RequestedDurationDays = dto.RequestedDurationDays,
             Status = RequestStatus.Submitted,
-            StatusChangedDate = DateTime.UtcNow
+            StatusChangedDate = DateTime.UtcNow,
+            // Denormalize source details at creation time for self-contained fulfillment view
+            SourceFabricWorkspaceId = product.Institution.FabricWorkspaceId,
+            SourceLakehouseItemId = product.SourceLakehouseItemId,
+            SourceTenantId = product.Institution.TenantId,
+            SourceInstitutionName = product.Institution.Name,
+            // Determine share type: internal if requesting tenant matches the owning institution's tenant
+            ShareType = !string.IsNullOrEmpty(tenantId)
+                && string.Equals(tenantId, product.Institution.TenantId, StringComparison.OrdinalIgnoreCase)
+                ? Core.Enums.ShareType.Internal
+                : Core.Enums.ShareType.External
         };
 
         var created = await _requestRepo.CreateAsync(request);
@@ -224,33 +234,80 @@ public class AccessRequestsController : ControllerBase
         if (request.Status != RequestStatus.Approved && request.Status != RequestStatus.Fulfilled)
             return BadRequest("Fulfillment details are only available for approved requests.");
 
+        // Prefer denormalized fields captured at request creation time;
+        // fall back to live navigation properties for legacy rows without them.
         var sourceInstitution = request.DataProduct.Institution;
         var requestingInstitution = request.RequestingInstitution;
 
-        var steps = new List<string>
+        var sourceName     = request.SourceInstitutionName ?? sourceInstitution.Name;
+        var sourceTenant   = request.SourceTenantId        ?? sourceInstitution.TenantId;
+        var sourceWorkspace = request.SourceFabricWorkspaceId ?? sourceInstitution.FabricWorkspaceId;
+        var sourceLakehouse = request.SourceLakehouseItemId ?? request.DataProduct.SourceLakehouseItemId;
+        var recipientTenant = request.RequestingTenantId ?? requestingInstitution?.TenantId;
+        var shareType = request.ShareType.ToString();
+
+        // Validate which required fields are missing
+        var missingFields = new List<string>();
+        if (string.IsNullOrEmpty(sourceWorkspace)) missingFields.Add("Source institution FabricWorkspaceId");
+        if (string.IsNullOrEmpty(sourceLakehouse))  missingFields.Add("Data Product SourceLakehouseItemId");
+        if (string.IsNullOrEmpty(request.TargetFabricWorkspaceId)) missingFields.Add("Target Fabric Workspace ID");
+        if (string.IsNullOrEmpty(request.TargetLakehouseItemId))   missingFields.Add("Target Lakehouse Item ID");
+        if (request.ShareType == Core.Enums.ShareType.External && string.IsNullOrEmpty(recipientTenant))
+            missingFields.Add("Recipient Tenant ID");
+
+        bool isReadyForAutoFulfill = missingFields.Count == 0;
+
+        List<string> steps;
+        if (request.ShareType == Core.Enums.ShareType.Internal)
         {
-            "1. Open the Fabric portal (https://app.fabric.microsoft.com)",
-            $"2. Navigate to workspace: {sourceInstitution.FabricWorkspaceId ?? "(configure workspace ID)"}",
-            $"3. Find the data item for '{request.DataProduct.Name}'",
-            "4. Click 'Share' → 'External data share'",
-            $"5. Enter recipient tenant: {requestingInstitution?.TenantId ?? "(unknown tenant)"}",
-            $"6. Enter recipient email: {request.RequestingUserEmail}",
-            "7. Set appropriate permissions and confirm the share",
-            $"8. The recipient should create a shortcut in their lakehouse: {request.TargetLakehouseItemId ?? "(not specified)"}",
-            $"9. Target workspace: {request.TargetFabricWorkspaceId ?? "(not specified)"}",
-            "10. Return to this portal and mark the request as 'Fulfilled' with the share ID"
-        };
+            steps = new List<string>
+            {
+                "1. Open the Fabric portal (https://app.fabric.microsoft.com)",
+                $"2. Navigate to source workspace: {sourceWorkspace ?? "(configure FabricWorkspaceId on institution)"}",
+                $"3. Open source lakehouse item: {sourceLakehouse ?? "(configure SourceLakehouseItemId on data product)"}",
+                $"4. Grant workspace Viewer or Contributor role to the user: {request.RequestingUserEmail}",
+                "   (Both workspaces are in the same tenant — no External Data Share is required)",
+                $"5. The user should create a OneLake shortcut in their lakehouse: {request.TargetLakehouseItemId ?? "(not specified)"}",
+                $"   in workspace: {request.TargetFabricWorkspaceId ?? "(not specified)"}",
+                $"   pointing to this lakehouse: workspaceId={sourceWorkspace ?? "?"}, itemId={sourceLakehouse ?? "?"}",
+                "6. Return to this portal and mark the request as 'Fulfilled'"
+            };
+        }
+        else
+        {
+            steps = new List<string>
+            {
+                "1. Open the Fabric portal (https://app.fabric.microsoft.com)",
+                $"2. Navigate to source workspace: {sourceWorkspace ?? "(configure FabricWorkspaceId on institution)"}",
+                $"3. Open source lakehouse item: {sourceLakehouse ?? "(configure SourceLakehouseItemId on data product)"}",
+                "4. Click 'Share' → 'External data share'",
+                $"5. Recipient tenant ID: {recipientTenant ?? "(unknown — requesting tenant ID not captured)"}",
+                $"6. Recipient email: {request.RequestingUserEmail}",
+                "7. Set appropriate permissions and confirm the share — copy the Share ID",
+                $"8. Notify the recipient. They should accept the share and create a OneLake shortcut",
+                $"   in workspace: {request.TargetFabricWorkspaceId ?? "(not specified)"}",
+                $"   in lakehouse: {request.TargetLakehouseItemId ?? "(not specified)"}",
+                "9. Return to this portal and mark the request as 'Fulfilled', providing the Share ID"
+            };
+        }
 
         return Ok(new FulfillmentDetailsDto(
             RequestId: request.Id,
             DataProductName: request.DataProduct.Name,
-            SourceInstitutionName: sourceInstitution.Name,
-            SourceFabricWorkspaceId: sourceInstitution.FabricWorkspaceId,
-            RecipientTenantId: requestingInstitution?.TenantId ?? "(unknown tenant)",
+            ShareType: shareType,
+            SourceInstitutionName: sourceName,
+            SourceTenantId: sourceTenant,
+            SourceFabricWorkspaceId: sourceWorkspace,
+            SourceLakehouseItemId: sourceLakehouse,
+            RecipientTenantId: recipientTenant,
             RecipientUserEmail: request.RequestingUserEmail,
+            RecipientUserName: request.RequestingUserName,
+            RequestingInstitutionName: requestingInstitution?.Name,
             TargetFabricWorkspaceId: request.TargetFabricWorkspaceId,
             TargetLakehouseItemId: request.TargetLakehouseItemId,
-            FulfillmentSteps: steps
+            FulfillmentSteps: steps,
+            IsReadyForAutoFulfill: isReadyForAutoFulfill,
+            MissingFields: missingFields
         ));
     }
 
@@ -462,22 +519,18 @@ public class AccessRequestsController : ControllerBase
                         req.StatusChangedBy = "PurviewWorkflow";
                         changed = true;
 
-                        // Attempt automated cross-tenant shortcut creation
-                        var autoFulfill = _configuration.GetValue<bool>("Fabric:AutoFulfillOnApproval", false);
-                        if (autoFulfill)
+                        // Attempt automated shortcut creation (gated by global + per-institution flags)
+                        var (fulfilled, fulfillError) = await TryAutoFulfillAsync(req);
+                        if (fulfilled)
                         {
-                            var (fulfilled, fulfillError) = await TryAutoFulfillAsync(req);
-                            if (fulfilled)
-                            {
-                                _logger.LogInformation(
-                                    "Auto-fulfillment completed for request {RequestId}", req.Id);
-                            }
-                            else
-                            {
-                                _logger.LogWarning(
-                                    "Auto-fulfillment not completed for request {RequestId}: {Error}",
-                                    req.Id, fulfillError);
-                            }
+                            _logger.LogInformation(
+                                "Auto-fulfillment completed for request {RequestId}", req.Id);
+                        }
+                        else
+                        {
+                            _logger.LogInformation(
+                                "Auto-fulfillment not completed for request {RequestId}: {Error}",
+                                req.Id, fulfillError);
                         }
                     }
                 }
@@ -519,10 +572,28 @@ public class AccessRequestsController : ControllerBase
             var institution = req.DataProduct?.Institution;
             var requestingInstitution = req.RequestingInstitution;
 
-            // Validate all required fields are present for automated fulfillment
-            if (institution == null || string.IsNullOrEmpty(institution.FabricWorkspaceId))
+            // System-level master switch
+            var globalEnabled = _configuration.GetValue<bool>("Fabric:AutoFulfillOnApproval", false);
+            if (!globalEnabled)
             {
-                var msg = $"Source institution or FabricWorkspaceId is missing";
+                _logger.LogInformation("Auto-fulfillment skipped for request {RequestId}: global setting disabled", req.Id);
+                return (false, "Auto-fulfillment is disabled globally (Fabric:AutoFulfillOnApproval)");
+            }
+
+            // Per-institution switch
+            if (institution == null || !institution.AutoFulfillEnabled)
+            {
+                var msg = institution == null
+                    ? "Source institution is missing"
+                    : $"Auto-fulfillment not enabled for institution '{institution.Name}'";
+                _logger.LogInformation("Auto-fulfillment skipped for request {RequestId}: {Reason}", req.Id, msg);
+                return (false, msg);
+            }
+
+            // Validate all required fields are present for automated fulfillment
+            if (string.IsNullOrEmpty(institution.FabricWorkspaceId))
+            {
+                var msg = "Source institution FabricWorkspaceId is missing";
                 _logger.LogWarning("Cannot auto-fulfill request {RequestId}: {Reason}", req.Id, msg);
                 return (false, msg);
             }
@@ -535,21 +606,9 @@ public class AccessRequestsController : ControllerBase
                 return (false, msg);
             }
 
-            // Resolve recipient tenant ID: prefer stored tenant ID on request, fall back to institution
-            var recipientTenantId = req.RequestingTenantId
-                ?? requestingInstitution?.TenantId;
-
-            if (string.IsNullOrEmpty(recipientTenantId))
-            {
-                var msg = $"Requesting tenant ID unknown (RequestingTenantId={req.RequestingTenantId ?? "(null)"}, " +
-                          $"InstitutionTenantId={requestingInstitution?.TenantId ?? "(null)"})";
-                _logger.LogWarning("Cannot auto-fulfill request {RequestId}: {Reason}", req.Id, msg);
-                return (false, msg);
-            }
-
-            // Source item ID: the Data Product's source lakehouse in Fabric
-            // (the Purview Data Asset IS the source lakehouse)
-            var sourceItemId = req.DataProduct?.SourceLakehouseItemId
+            // Source item ID: prefer denormalized field, fall back to live data product
+            var sourceItemId = req.SourceLakehouseItemId
+                ?? req.DataProduct?.SourceLakehouseItemId
                 ?? _configuration["Fabric:SourceItemOverride"];
 
             if (string.IsNullOrEmpty(sourceItemId))
@@ -560,23 +619,56 @@ public class AccessRequestsController : ControllerBase
                 return (false, msg);
             }
 
-            _logger.LogInformation(
-                "Auto-fulfillment for request {RequestId}: sourceWorkspace={Workspace}, " +
-                "sourceLakehouse={ItemId}, recipientTenant={Tenant}, targetWorkspace={TargetWs}, " +
-                "targetLakehouse={TargetLh}",
-                req.Id, institution.FabricWorkspaceId, sourceItemId, recipientTenantId,
-                req.TargetFabricWorkspaceId, req.TargetLakehouseItemId);
+            AutoFulfillmentResult result;
 
-            var result = await _fabricShortcutService.CreateCrossTenantShortcutAsync(
-                sourceWorkspaceId: institution.FabricWorkspaceId,
-                sourceItemId: sourceItemId,
-                sourceTenantId: institution.TenantId,
-                recipientTenantId: recipientTenantId,
-                recipientUserEmail: req.RequestingUserEmail,
-                targetWorkspaceId: req.TargetFabricWorkspaceId,
-                targetLakehouseId: req.TargetLakehouseItemId,  // Consumer's target lakehouse item ID
-                dataProductName: req.DataProduct?.Name ?? "DataProduct",
-                cancellationToken: default);
+            if (req.ShareType == Core.Enums.ShareType.Internal)
+            {
+                // Same-tenant: direct OneLake shortcut, no external data share required
+                _logger.LogInformation(
+                    "Auto-fulfillment (Internal) for request {RequestId}: sourceWorkspace={Workspace}, " +
+                    "sourceLakehouse={ItemId}, tenant={Tenant}, targetWorkspace={TargetWs}, targetLakehouse={TargetLh}",
+                    req.Id, institution.FabricWorkspaceId, sourceItemId, institution.TenantId,
+                    req.TargetFabricWorkspaceId, req.TargetLakehouseItemId);
+
+                result = await _fabricShortcutService.CreateInternalShortcutAsync(
+                    sourceWorkspaceId: institution.FabricWorkspaceId,
+                    sourceItemId: sourceItemId,
+                    tenantId: institution.TenantId,
+                    targetWorkspaceId: req.TargetFabricWorkspaceId,
+                    targetLakehouseId: req.TargetLakehouseItemId,
+                    dataProductName: req.DataProduct?.Name ?? "DataProduct",
+                    cancellationToken: default);
+            }
+            else
+            {
+                // Cross-tenant: external data share + OneLake shortcut
+                var recipientTenantId = req.RequestingTenantId ?? requestingInstitution?.TenantId;
+                if (string.IsNullOrEmpty(recipientTenantId))
+                {
+                    var msg = $"Requesting tenant ID unknown (RequestingTenantId={req.RequestingTenantId ?? "(null)"}, " +
+                              $"InstitutionTenantId={requestingInstitution?.TenantId ?? "(null)"})";
+                    _logger.LogWarning("Cannot auto-fulfill request {RequestId}: {Reason}", req.Id, msg);
+                    return (false, msg);
+                }
+
+                _logger.LogInformation(
+                    "Auto-fulfillment (External) for request {RequestId}: sourceWorkspace={Workspace}, " +
+                    "sourceLakehouse={ItemId}, recipientTenant={Tenant}, targetWorkspace={TargetWs}, " +
+                    "targetLakehouse={TargetLh}",
+                    req.Id, institution.FabricWorkspaceId, sourceItemId, recipientTenantId,
+                    req.TargetFabricWorkspaceId, req.TargetLakehouseItemId);
+
+                result = await _fabricShortcutService.CreateCrossTenantShortcutAsync(
+                    sourceWorkspaceId: institution.FabricWorkspaceId,
+                    sourceItemId: sourceItemId,
+                    sourceTenantId: institution.TenantId,
+                    recipientTenantId: recipientTenantId,
+                    recipientUserEmail: req.RequestingUserEmail,
+                    targetWorkspaceId: req.TargetFabricWorkspaceId,
+                    targetLakehouseId: req.TargetLakehouseItemId,
+                    dataProductName: req.DataProduct?.Name ?? "DataProduct",
+                    cancellationToken: default);
+            }
 
             if (result.Success || result.PartialSuccess)
             {
@@ -602,7 +694,7 @@ public class AccessRequestsController : ControllerBase
                     req.DataProduct?.Name ?? "Data Product",
                     result.Success ? "Fulfilled" : "Approved (share created, shortcut pending)",
                     result.Success
-                        ? $"Your cross-tenant shortcut '{result.ShortcutName}' has been created automatically."
+                        ? $"Your shortcut '{result.ShortcutName}' has been created automatically."
                         : "The external data share was created. You may need to create the shortcut manually.");
 
                 // Audit
@@ -616,6 +708,7 @@ public class AccessRequestsController : ControllerBase
                     DetailsJson = System.Text.Json.JsonSerializer.Serialize(new
                     {
                         AutoFulfilled = true,
+                        ShareType = req.ShareType.ToString(),
                         result.ExternalShareId,
                         result.ShortcutName,
                         result.PartialSuccess
@@ -687,6 +780,11 @@ public class AccessRequestsController : ControllerBase
         r.PurviewWorkflowRunId,
         r.PurviewWorkflowStatus,
         r.ExpirationDate,
-        r.CreatedDate
+        r.CreatedDate,
+        r.ShareType.ToString(),
+        r.SourceFabricWorkspaceId,
+        r.SourceLakehouseItemId,
+        r.SourceTenantId,
+        r.SourceInstitutionName
     );
 }

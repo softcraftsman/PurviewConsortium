@@ -66,6 +66,10 @@ public class ConsortiumDbContext : DbContext
             entity.Property(e => e.BusinessJustification).HasMaxLength(4000).IsRequired();
             entity.Property(e => e.StatusChangedBy).HasMaxLength(256);
             entity.Property(e => e.ExternalShareId).HasMaxLength(256);
+            entity.Property(e => e.SourceFabricWorkspaceId).HasMaxLength(128);
+            entity.Property(e => e.SourceLakehouseItemId).HasMaxLength(256);
+            entity.Property(e => e.SourceTenantId).HasMaxLength(128);
+            entity.Property(e => e.SourceInstitutionName).HasMaxLength(256);
 
             entity.Property(e => e.Status)
                 .HasConversion<string>()

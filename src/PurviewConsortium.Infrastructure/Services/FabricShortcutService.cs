@@ -135,6 +135,100 @@ public class FabricShortcutService : IFabricShortcutService
     }
 
     /// <inheritdoc />
+    public async Task<AutoFulfillmentResult> CreateInternalShortcutAsync(
+        string sourceWorkspaceId,
+        string sourceItemId,
+        string tenantId,
+        string targetWorkspaceId,
+        string targetLakehouseId,
+        string dataProductName,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "Starting automated internal shortcut creation for Data Product '{Name}'. " +
+            "Source lakehouse: workspace={SourceWs}, item={SourceItem}, " +
+            "Target lakehouse: workspace={TargetWs}, item={TargetLh}, tenant={Tenant}",
+            dataProductName, sourceWorkspaceId, sourceItemId,
+            targetWorkspaceId, targetLakehouseId, tenantId);
+
+        try
+        {
+            // Single-tenant token — both workspaces are in the same tenant
+            var accessToken = await GetFabricTokenAsync(tenantId, cancellationToken);
+            var httpClient = _httpClientFactory.CreateClient("Fabric");
+
+            var url = $"{FabricBaseUrl}/workspaces/{targetWorkspaceId}/items/{targetLakehouseId}/shortcuts";
+
+            var shortcutName = SanitizeShortcutName(dataProductName);
+            var shortcutPath = $"Tables/{shortcutName}";
+
+            var payload = new
+            {
+                name = shortcutName,
+                path = shortcutPath,
+                target = new
+                {
+                    oneLake = new
+                    {
+                        workspaceId = sourceWorkspaceId,
+                        itemId = sourceItemId,
+                        path = "/"
+                    }
+                }
+            };
+
+            var request = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = new StringContent(
+                    JsonSerializer.Serialize(payload, new JsonSerializerOptions
+                    {
+                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                    }),
+                    Encoding.UTF8, "application/json")
+            };
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+            var response = await httpClient.SendAsync(request, cancellationToken);
+            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError(
+                    "Fabric internal shortcut API returned {Status}: {Body}",
+                    response.StatusCode, responseBody);
+
+                return new AutoFulfillmentResult
+                {
+                    Success = false,
+                    ErrorMessage = $"Fabric API error ({response.StatusCode}): {responseBody}"
+                };
+            }
+
+            _logger.LogInformation(
+                "Internal shortcut created successfully for '{Name}'. ShortcutName={ShortcutName}",
+                dataProductName, shortcutName);
+
+            return new AutoFulfillmentResult
+            {
+                Success = true,
+                ShortcutName = shortcutName
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Unexpected error during automated internal shortcut creation for '{Name}'",
+                dataProductName);
+
+            return new AutoFulfillmentResult
+            {
+                Success = false,
+                ErrorMessage = $"Unexpected error: {ex.Message}"
+            };
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<bool> RevokeExternalShareAsync(
         string sourceWorkspaceId,
         string sourceItemId,

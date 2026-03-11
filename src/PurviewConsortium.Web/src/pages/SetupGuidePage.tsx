@@ -376,8 +376,10 @@ Client Secret Value:       •••••••••••••••••�
               <Text block>
                 On the <strong>Admin</strong> page, click the <strong>Scan</strong> button next to the institution.
                 The platform will authenticate using its client credentials against the institution's tenant and
-                call the Purview Data Products API to discover shared data products tagged with the{' '}
-                <span className={styles.inlineCode}>Consortium-Shareable</span> glossary term.
+                call the Purview Data Products API. Only Data Products in the governance domain(s) configured as the
+                institution's <strong>Consortium Domain IDs</strong> will be imported into the consortium catalog.
+                Make sure all Data Products you want to share are placed in that Purview governance domain (the
+                domain named <strong>Consortium</strong> by convention).
               </Text>
             </Step>
           </ol>

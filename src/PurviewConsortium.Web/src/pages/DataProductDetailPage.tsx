@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMsal } from '@azure/msal-react';
 import {
   makeStyles,
   tokens,
@@ -61,6 +62,7 @@ export default function DataProductDetailPage() {
   const navigate = useNavigate();
   const styles = useStyles();
   const queryClient = useQueryClient();
+  const { instance } = useMsal();
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
   const [justification, setJustification] = useState('');
   const [targetWorkspace, setTargetWorkspace] = useState('');
@@ -115,6 +117,12 @@ export default function DataProductDetailPage() {
 
   if (isLoading) return <Spinner label="Loading..." />;
   if (!product) return <Text>Data Product not found.</Text>;
+
+  // Detect whether the current user is in the same tenant as the data product
+  const currentAccount = instance.getActiveAccount() ?? instance.getAllAccounts()[0];
+  const userTenantId: string | undefined = (currentAccount?.tenantId) ?? undefined;
+  const isSameTenant = !!(userTenantId && product.institutionTenantId &&
+    userTenantId.toLowerCase() === product.institutionTenantId.toLowerCase());
 
   return (
     <div>
@@ -273,6 +281,24 @@ export default function DataProductDetailPage() {
           <DialogTitle>Request Access to {product.name}</DialogTitle>
           <DialogBody>
             <DialogContent>
+              {isSameTenant ? (
+                <MessageBar intent="info" style={{ marginBottom: '12px' }}>
+                  <MessageBarBody>
+                    You are in the same tenant as this Data Product. If automated fulfillment is
+                    enabled for this institution, a direct OneLake shortcut will be created
+                    automatically after approval — no External Data Share required.
+                  </MessageBarBody>
+                </MessageBar>
+              ) : (
+                <MessageBar intent="info" style={{ marginBottom: '12px' }}>
+                  <MessageBarBody>
+                    This Data Product is owned by a different tenant. An External Data Share will
+                    be requested. Fulfillment may be automated or manual depending on the institution's
+                    configuration. Providing your Target Workspace and Lakehouse IDs below enables
+                    automated shortcut creation.
+                  </MessageBarBody>
+                </MessageBar>
+              )}
               {requestError && (
                 <MessageBar intent="error" style={{ marginBottom: '12px' }}>
                   <MessageBarBody>{requestError}</MessageBarBody>
@@ -287,14 +313,22 @@ export default function DataProductDetailPage() {
                   rows={4}
                 />
               </Field>
-              <Field label="Target Fabric Workspace ID (your workspace)" style={{ marginTop: '12px' }}>
+              <Field
+                label="Target Fabric Workspace ID (your workspace)"
+                hint="Required for automated shortcut creation. Leave blank if you will configure the shortcut manually after approval."
+                style={{ marginTop: '12px' }}
+              >
                 <Input
                   value={targetWorkspace}
                   onChange={(_, d) => setTargetWorkspace(d.value)}
                   placeholder="Your Fabric workspace GUID"
                 />
               </Field>
-              <Field label="Target Lakehouse Item ID (your lakehouse)" style={{ marginTop: '12px' }}>
+              <Field
+                label="Target Lakehouse Item ID (your lakehouse)"
+                hint="Required for automated shortcut creation. Leave blank if you will configure the shortcut manually after approval."
+                style={{ marginTop: '12px' }}
+              >
                 <Input
                   value={targetLakehouse}
                   onChange={(_, d) => setTargetLakehouse(d.value)}

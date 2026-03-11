@@ -73,6 +73,26 @@ public interface IFabricShortcutService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Creates a direct OneLake shortcut within the same Azure AD tenant.
+    /// No external data share is required because both workspaces belong to the same tenant.
+    /// </summary>
+    /// <param name="sourceWorkspaceId">Source institution's Fabric workspace ID.</param>
+    /// <param name="sourceItemId">Source lakehouse item ID.</param>
+    /// <param name="tenantId">Shared Azure AD tenant ID.</param>
+    /// <param name="targetWorkspaceId">Consumer's target Fabric workspace ID.</param>
+    /// <param name="targetLakehouseId">Consumer's target lakehouse item ID.</param>
+    /// <param name="dataProductName">Name of the data product (used for shortcut naming).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<AutoFulfillmentResult> CreateInternalShortcutAsync(
+        string sourceWorkspaceId,
+        string sourceItemId,
+        string tenantId,
+        string targetWorkspaceId,
+        string targetLakehouseId,
+        string dataProductName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Revokes an existing external data share, invalidating the consumer's shortcut.
     /// </summary>
     Task<bool> RevokeExternalShareAsync(
