@@ -139,6 +139,8 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+    environment:
+      name: production
 
     steps:
       - name: Checkout repository
@@ -167,6 +169,8 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     permissions: {}
+    environment:
+      name: production
 
     steps:
       - name: Close staging environment
