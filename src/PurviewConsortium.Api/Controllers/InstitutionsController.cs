@@ -65,7 +65,8 @@ public class InstitutionsController : ControllerBase
             ConsortiumDomainIds = dto.ConsortiumDomainIds,
             PrimaryContactEmail = dto.PrimaryContactEmail,
             IsActive = true,
-            AdminConsentGranted = false
+            AdminConsentGranted = false,
+            AutoFulfillEnabled = false
         };
 
         var created = await _institutionRepo.CreateAsync(institution);
@@ -102,6 +103,7 @@ public class InstitutionsController : ControllerBase
         institution.PrimaryContactEmail = dto.PrimaryContactEmail;
         institution.IsActive = dto.IsActive;
         institution.AdminConsentGranted = dto.AdminConsentGranted;
+        institution.AutoFulfillEnabled = dto.AutoFulfillEnabled;
 
         var updated = await _institutionRepo.UpdateAsync(institution);
 
@@ -180,6 +182,6 @@ public class InstitutionsController : ControllerBase
     private static InstitutionDto MapToDto(Institution i) => new(
         i.Id, i.Name, i.TenantId, i.PurviewAccountName,
         i.FabricWorkspaceId, i.ConsortiumDomainIds, i.PrimaryContactEmail,
-        i.IsActive, i.AdminConsentGranted,
+        i.IsActive, i.AdminConsentGranted, i.AutoFulfillEnabled,
         i.CreatedDate, i.ModifiedDate);
 }

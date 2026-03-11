@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PurviewConsortium.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using PurviewConsortium.Infrastructure.Data;
 namespace PurviewConsortium.Infrastructure.Migrations
 {
     [DbContext(typeof(ConsortiumDbContext))]
-    partial class ConsortiumDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260311152206_AddAutoFulfillAndShareType")]
+    partial class AddAutoFulfillAndShareType
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -183,84 +186,6 @@ namespace PurviewConsortium.Infrastructure.Migrations
                     b.ToTable("AuditLogs");
                 });
 
-            modelBuilder.Entity("PurviewConsortium.Core.Entities.DataAsset", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("AccountName")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("AssetType")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("ClassificationsJson")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ContactsJson")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.Property<string>("FullyQualifiedName")
-                        .HasMaxLength(2048)
-                        .HasColumnType("nvarchar(2048)");
-
-                    b.Property<Guid>("InstitutionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("LastRefreshedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("ModifiedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
-
-                    b.Property<string>("ProvisioningState")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<string>("PurviewAssetId")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<DateTime?>("PurviewCreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("PurviewLastModifiedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Type")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("WorkspaceName")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name");
-
-                    b.HasIndex("InstitutionId", "PurviewAssetId")
-                        .IsUnique();
-
-                    b.ToTable("DataAssets");
-                });
-
             modelBuilder.Entity("PurviewConsortium.Core.Entities.DataProduct", b =>
                 {
                     b.Property<Guid>("Id")
@@ -279,23 +204,14 @@ namespace PurviewConsortium.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("DataAssetsJson")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("DataProductType")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("DataQualityScore")
-                        .HasColumnType("int");
 
                     b.Property<string>("Description")
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
                     b.Property<string>("Documentation")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("DocumentationUrl")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("Endorsed")
@@ -357,13 +273,7 @@ namespace PurviewConsortium.Infrastructure.Migrations
                     b.Property<string>("Status")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("TermsOfUseUrl")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("UpdateFrequency")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("UseCases")
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
@@ -384,10 +294,7 @@ namespace PurviewConsortium.Infrastructure.Migrations
                             AssetCount = 0,
                             ClassificationsJson = "[\"PHI\",\"De-identified\"]",
                             CreatedDate = new DateTime(2026, 1, 15, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DataAssetsJson = "[{\"Name\":\"patient_demographics_v2\",\"Type\":\"Table\",\"Description\":\"Core demographics table with de-identified records\"},{\"Name\":\"geographic_regions\",\"Type\":\"Table\",\"Description\":\"Region lookup and mapping data\"}]",
-                            DataQualityScore = 87,
                             Description = "De-identified patient demographic data including age, gender, and geographic region.",
-                            DocumentationUrl = "https://contoso.edu/datasets/patient-demographics/docs",
                             Endorsed = false,
                             GlossaryTermsJson = "[\"Consortium-Shareable\",\"Demographics\"]",
                             InstitutionId = new Guid("11111111-1111-1111-1111-111111111111"),
@@ -398,10 +305,7 @@ namespace PurviewConsortium.Infrastructure.Migrations
                             OwnerEmail = "jsmith@contoso.edu",
                             PurviewQualifiedName = "contoso://datasets/patient-demographics",
                             SensitivityLabel = "Confidential",
-                            SourceSystem = "Azure SQL Database",
-                            TermsOfUseUrl = "https://contoso.edu/data-sharing/terms",
-                            UpdateFrequency = "Weekly",
-                            UseCases = "Population health studies, outcome analysis, and demographic trend research across the consortium."
+                            SourceSystem = "Azure SQL Database"
                         },
                         new
                         {
@@ -409,10 +313,7 @@ namespace PurviewConsortium.Infrastructure.Migrations
                             AssetCount = 0,
                             ClassificationsJson = "[\"Research\",\"Aggregated\"]",
                             CreatedDate = new DateTime(2026, 2, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DataAssetsJson = "[{\"Name\":\"trials_summary_2020_2025\",\"Type\":\"Table\",\"Description\":\"Aggregated trial results and outcomes\"},{\"Name\":\"trial_metadata\",\"Type\":\"Table\",\"Description\":\"Trial identifiers, phases, and sponsors\"},{\"Name\":\"outcomes_analysis\",\"Type\":\"View\",\"Description\":\"Pre-computed outcome statistics\"}]",
-                            DataQualityScore = 92,
                             Description = "Aggregated clinical trial results and outcomes data from 2020-2025.",
-                            DocumentationUrl = "https://fabrikam.org/datasets/clinical-trials/documentation",
                             Endorsed = false,
                             GlossaryTermsJson = "[\"Consortium-Shareable\",\"Clinical-Trials\"]",
                             InstitutionId = new Guid("22222222-2222-2222-2222-222222222222"),
@@ -423,26 +324,8 @@ namespace PurviewConsortium.Infrastructure.Migrations
                             OwnerEmail = "ajohnson@fabrikam.org",
                             PurviewQualifiedName = "fabrikam://datasets/clinical-trials",
                             SensitivityLabel = "General",
-                            SourceSystem = "Fabric Lakehouse",
-                            TermsOfUseUrl = "https://fabrikam.org/data-governance/terms",
-                            UpdateFrequency = "Monthly",
-                            UseCases = "Cross-institutional research collaboration, meta-analyses of clinical trials, and regulatory reporting."
+                            SourceSystem = "Fabric Lakehouse"
                         });
-                });
-
-            modelBuilder.Entity("PurviewConsortium.Core.Entities.DataProductDataAsset", b =>
-                {
-                    b.Property<Guid>("DataProductId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("DataAssetId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("DataProductId", "DataAssetId");
-
-                    b.HasIndex("DataAssetId");
-
-                    b.ToTable("DataProductDataAssets");
                 });
 
             modelBuilder.Entity("PurviewConsortium.Core.Entities.Institution", b =>
@@ -635,17 +518,6 @@ namespace PurviewConsortium.Infrastructure.Migrations
                     b.Navigation("RequestingInstitution");
                 });
 
-            modelBuilder.Entity("PurviewConsortium.Core.Entities.DataAsset", b =>
-                {
-                    b.HasOne("PurviewConsortium.Core.Entities.Institution", "Institution")
-                        .WithMany("DataAssets")
-                        .HasForeignKey("InstitutionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Institution");
-                });
-
             modelBuilder.Entity("PurviewConsortium.Core.Entities.DataProduct", b =>
                 {
                     b.HasOne("PurviewConsortium.Core.Entities.Institution", "Institution")
@@ -655,25 +527,6 @@ namespace PurviewConsortium.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Institution");
-                });
-
-            modelBuilder.Entity("PurviewConsortium.Core.Entities.DataProductDataAsset", b =>
-                {
-                    b.HasOne("PurviewConsortium.Core.Entities.DataAsset", "DataAsset")
-                        .WithMany("DataProductDataAssets")
-                        .HasForeignKey("DataAssetId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("PurviewConsortium.Core.Entities.DataProduct", "DataProduct")
-                        .WithMany("DataProductDataAssets")
-                        .HasForeignKey("DataProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("DataAsset");
-
-                    b.Navigation("DataProduct");
                 });
 
             modelBuilder.Entity("PurviewConsortium.Core.Entities.SyncHistory", b =>
@@ -697,22 +550,13 @@ namespace PurviewConsortium.Infrastructure.Migrations
                     b.Navigation("Institution");
                 });
 
-            modelBuilder.Entity("PurviewConsortium.Core.Entities.DataAsset", b =>
-                {
-                    b.Navigation("DataProductDataAssets");
-                });
-
             modelBuilder.Entity("PurviewConsortium.Core.Entities.DataProduct", b =>
                 {
                     b.Navigation("AccessRequests");
-
-                    b.Navigation("DataProductDataAssets");
                 });
 
             modelBuilder.Entity("PurviewConsortium.Core.Entities.Institution", b =>
                 {
-                    b.Navigation("DataAssets");
-
                     b.Navigation("DataProducts");
 
                     b.Navigation("IncomingRequests");

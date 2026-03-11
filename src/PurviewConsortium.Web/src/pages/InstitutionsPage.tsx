@@ -59,6 +59,7 @@ export default function InstitutionsPage() {
     consortiumDomainIds: '',
     isActive: true,
     adminConsentGranted: false,
+    autoFulfillEnabled: false,
   });
 
   const clientId = import.meta.env.VITE_AZURE_CLIENT_ID || '';
@@ -122,6 +123,7 @@ export default function InstitutionsPage() {
         primaryContactEmail: inst.primaryContactEmail,
         isActive: inst.isActive,
         adminConsentGranted: !inst.adminConsentGranted,
+        autoFulfillEnabled: inst.autoFulfillEnabled,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['institutions'] });
@@ -138,6 +140,7 @@ export default function InstitutionsPage() {
         consortiumDomainIds: editForm.consortiumDomainIds || undefined,
         isActive: editForm.isActive,
         adminConsentGranted: editForm.adminConsentGranted,
+        autoFulfillEnabled: editForm.autoFulfillEnabled,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['institutions'] });
@@ -154,6 +157,7 @@ export default function InstitutionsPage() {
       consortiumDomainIds: inst.consortiumDomainIds ?? '',
       isActive: inst.isActive,
       adminConsentGranted: inst.adminConsentGranted,
+      autoFulfillEnabled: inst.autoFulfillEnabled,
     });
     setEditTarget(inst);
   };
@@ -359,7 +363,10 @@ export default function InstitutionsPage() {
                     type="email"
                   />
                 </Field>
-                <Field label="Consortium Domain IDs">
+                <Field
+                    label="Consortium Domain IDs"
+                    hint="Comma-separated Purview governance domain IDs. Data Products in these domains will be synced to the consortium catalog. Use the domain whose ID you configure here to mark which Data Products are shareable."
+                  >
                   <Input
                     value={editForm.consortiumDomainIds}
                     onChange={handleEditFieldChange('consortiumDomainIds')}
@@ -380,6 +387,17 @@ export default function InstitutionsPage() {
                       type="checkbox"
                       checked={editForm.adminConsentGranted}
                       onChange={(e) => setEditForm((prev) => ({ ...prev, adminConsentGranted: e.target.checked }))}
+                      style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                    />
+                  </Field>
+                  <Field
+                    label="Enable Automated Fulfillment"
+                    hint="When enabled (and the global AutoFulfillOnApproval setting is on), the system will automatically create Fabric shortcuts as the Application Identity upon approval. Requires Fabric Workspace ID and Source Lakehouse Item ID to be configured."
+                  >
+                    <input
+                      type="checkbox"
+                      checked={editForm.autoFulfillEnabled}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, autoFulfillEnabled: e.target.checked }))}
                       style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                     />
                   </Field>

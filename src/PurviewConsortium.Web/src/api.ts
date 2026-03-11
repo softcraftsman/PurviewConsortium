@@ -50,6 +50,7 @@ export interface DataProductDetail extends DataProductListItem {
   ownerEmail?: string;
   schemaJson?: string;
   institutionContactEmail: string;
+  institutionTenantId: string;
   sourceLakehouseItemId?: string;
   lastSyncedFromPurview?: string;
   createdDate: string;
@@ -115,6 +116,11 @@ export interface AccessRequest {
   purviewWorkflowStatus?: string;
   expirationDate?: string;
   createdDate: string;
+  shareType: string;
+  sourceFabricWorkspaceId?: string;
+  sourceLakehouseItemId?: string;
+  sourceTenantId?: string;
+  sourceInstitutionName?: string;
 }
 
 export interface Institution {
@@ -127,6 +133,7 @@ export interface Institution {
   consortiumDomainIds?: string;
   isActive: boolean;
   adminConsentGranted: boolean;
+  autoFulfillEnabled: boolean;
   createdDate: string;
   modifiedDate: string;
 }

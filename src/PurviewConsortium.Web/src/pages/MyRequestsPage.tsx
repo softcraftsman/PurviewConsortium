@@ -93,6 +93,7 @@ export default function MyRequestsPage() {
             <TableRow>
               <TableHeaderCell>Data Product</TableHeaderCell>
               <TableHeaderCell>Institution</TableHeaderCell>
+              <TableHeaderCell>Type</TableHeaderCell>
               <TableHeaderCell>Status</TableHeaderCell>
               <TableHeaderCell>Purview Workflow</TableHeaderCell>
               <TableHeaderCell>Fabric Shortcut</TableHeaderCell>
@@ -107,6 +108,21 @@ export default function MyRequestsPage() {
                   <Text weight="semibold">{req.dataProductName}</Text>
                 </TableCell>
                 <TableCell>{req.owningInstitutionName}</TableCell>
+                <TableCell>
+                  <Tooltip
+                    content={req.shareType === 'Internal'
+                      ? 'Same-tenant share — direct OneLake shortcut (no External Data Share needed)'
+                      : 'Cross-tenant share — requires an External Data Share in Fabric'}
+                    relationship="label"
+                  >
+                    <Badge
+                      appearance="tint"
+                      color={req.shareType === 'Internal' ? 'success' : 'informative'}
+                    >
+                      {req.shareType === 'Internal' ? 'Internal Shortcut' : 'External Share'}
+                    </Badge>
+                  </Tooltip>
+                </TableCell>
                 <TableCell>
                   <Badge appearance="filled" color={statusColor(req.status)}>
                     {req.status}

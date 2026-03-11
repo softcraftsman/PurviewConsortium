@@ -16,6 +16,14 @@ public class Institution
     public string PrimaryContactEmail { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
     public bool AdminConsentGranted { get; set; }
+    /// <summary>
+    /// When true (and the global Fabric:AutoFulfillOnApproval setting is also true),
+    /// the system will attempt to automatically create Fabric shortcuts or external data
+    /// shares as the Application Identity upon request approval.
+    /// Requires FabricWorkspaceId on this institution and SourceLakehouseItemId on the
+    /// Data Product to be configured.
+    /// </summary>
+    public bool AutoFulfillEnabled { get; set; } = false;
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
     public DateTime ModifiedDate { get; set; } = DateTime.UtcNow;
 

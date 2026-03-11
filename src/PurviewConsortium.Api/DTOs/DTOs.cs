@@ -14,6 +14,7 @@ public record InstitutionDto(
     string PrimaryContactEmail,
     bool IsActive,
     bool AdminConsentGranted,
+    bool AutoFulfillEnabled,
     DateTime CreatedDate,
     DateTime ModifiedDate);
 
@@ -32,7 +33,8 @@ public record UpdateInstitutionDto(
     string? ConsortiumDomainIds,
     string PrimaryContactEmail,
     bool IsActive,
-    bool AdminConsentGranted);
+    bool AdminConsentGranted,
+    bool AutoFulfillEnabled);
 
 // --- Data Product DTOs ---
 
@@ -65,6 +67,7 @@ public record DataProductDetailDto(
     Guid InstitutionId,
     string InstitutionName,
     string InstitutionContactEmail,
+    string InstitutionTenantId,
     string? SourceLakehouseItemId,
     DateTime? PurviewLastModified,
     DateTime? LastSyncedFromPurview,
@@ -138,7 +141,12 @@ public record AccessRequestDto(
     string? PurviewWorkflowRunId,
     string? PurviewWorkflowStatus,
     DateTime? ExpirationDate,
-    DateTime CreatedDate);
+    DateTime CreatedDate,
+    string ShareType,
+    string? SourceFabricWorkspaceId,
+    string? SourceLakehouseItemId,
+    string? SourceTenantId,
+    string? SourceInstitutionName);
 
 public record UpdateRequestStatusDto(
     RequestStatus NewStatus,
@@ -210,13 +218,24 @@ public record AuditLogDto(
 public record FulfillmentDetailsDto(
     Guid RequestId,
     string DataProductName,
+    string ShareType,
+    // Source
     string SourceInstitutionName,
+    string? SourceTenantId,
     string? SourceFabricWorkspaceId,
+    string? SourceLakehouseItemId,
+    // Recipient
     string? RecipientTenantId,
     string RecipientUserEmail,
+    string RecipientUserName,
+    string? RequestingInstitutionName,
+    // Target
     string? TargetFabricWorkspaceId,
     string? TargetLakehouseItemId,
-    List<string> FulfillmentSteps);
+    // Instructions
+    List<string> FulfillmentSteps,
+    bool IsReadyForAutoFulfill,
+    List<string> MissingFields);
 
 // --- Admin DTOs ---
 
