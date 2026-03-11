@@ -9,7 +9,6 @@ namespace PurviewConsortium.Api.Controllers;
 
 [ApiController]
 [Route("api/admin/institutions")]
-[Authorize] // TODO: Add [Authorize(Policy = "RequireConsortiumAdmin")] when roles are wired up
 public class InstitutionsController : ControllerBase
 {
     private readonly IInstitutionRepository _institutionRepo;

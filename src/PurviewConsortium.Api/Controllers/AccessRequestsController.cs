@@ -9,7 +9,6 @@ namespace PurviewConsortium.Api.Controllers;
 
 [ApiController]
 [Route("api/requests")]
-[Authorize]
 public class AccessRequestsController : ControllerBase
 {
     private readonly IAccessRequestRepository _requestRepo;

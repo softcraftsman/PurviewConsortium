@@ -10,7 +10,6 @@ namespace PurviewConsortium.Api.Controllers;
 
 [ApiController]
 [Route("api/catalog")]
-[Authorize]
 public class CatalogController : ControllerBase
 {
     private readonly ICatalogSearchService _searchService;

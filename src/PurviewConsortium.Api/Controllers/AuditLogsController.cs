@@ -8,7 +8,6 @@ namespace PurviewConsortium.Api.Controllers;
 
 [ApiController]
 [Route("api/admin/logs")]
-[Authorize]
 public class AuditLogsController : ControllerBase
 {
     private readonly IAuditLogRepository _auditLogRepo;
