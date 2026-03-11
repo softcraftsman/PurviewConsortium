@@ -528,7 +528,9 @@ public class AccessRequestsController : ControllerBase
                         }
                         else
                         {
-                            _logger.LogInformation(
+                            // TryAutoFulfillAsync already logs detailed warnings/errors internally;
+                            // log at Warning here so this surfaces in operational monitoring.
+                            _logger.LogWarning(
                                 "Auto-fulfillment not completed for request {RequestId}: {Error}",
                                 req.Id, fulfillError);
                         }
