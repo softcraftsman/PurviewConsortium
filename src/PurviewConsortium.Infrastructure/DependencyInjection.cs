@@ -30,6 +30,7 @@ public static class DependencyInjection
         // Repositories
         services.AddScoped<IInstitutionRepository, InstitutionRepository>();
         services.AddScoped<IDataProductRepository, DataProductRepository>();
+        services.AddScoped<IDataAssetRepository, DataAssetRepository>();
         services.AddScoped<IAccessRequestRepository, AccessRequestRepository>();
         services.AddScoped<ISyncHistoryRepository, SyncHistoryRepository>();
         services.AddScoped<IAuditLogRepository, AuditLogRepository>();

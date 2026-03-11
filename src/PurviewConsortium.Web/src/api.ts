@@ -54,6 +54,35 @@ export interface DataProductDetail extends DataProductListItem {
   lastSyncedFromPurview?: string;
   createdDate: string;
   currentUserRequest?: { requestId: string; status: string; createdDate: string };
+  useCases?: string;
+  dataQualityScore?: number;
+  updateFrequency?: string;
+  termsOfUseUrl?: string;
+  documentationUrl?: string;
+  dataAssets: DataAssetListItem[];
+}
+
+export interface DataAssetListItem {
+  id: string;
+  purviewAssetId: string;
+  name: string;
+  type?: string;
+  description?: string;
+  assetType?: string;
+  fullyQualifiedName?: string;
+  accountName?: string;
+  workspaceName?: string;
+  provisioningState?: string;
+  lastRefreshedAt?: string;
+  purviewCreatedAt?: string;
+  purviewLastModifiedAt?: string;
+  institutionId: string;
+  institutionName: string;
+}
+
+export interface DataAssetListResponse {
+  items: DataAssetListItem[];
+  totalCount: number;
 }
 
 export interface CatalogSearchResponse {
@@ -155,6 +184,8 @@ export const catalogApi = {
     }>('/catalog/filters'),
   updateProductFabric: (id: string, data: { sourceLakehouseItemId?: string }) =>
     api.patch<DataProductDetail>(`/catalog/products/${id}/fabric`, data),
+  getDataAssets: (params?: Record<string, string>) =>
+    api.get<DataAssetListResponse>('/catalog/data-assets', { params }),
 };
 
 export const requestsApi = {

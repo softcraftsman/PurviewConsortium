@@ -29,6 +29,11 @@ public class DataProduct
     public bool Endorsed { get; set; }
     public string? UpdateFrequency { get; set; }
     public string? Documentation { get; set; }
+    public string? UseCases { get; set; }
+    public int? DataQualityScore { get; set; }
+    public string? TermsOfUseUrl { get; set; }
+    public string? DocumentationUrl { get; set; }
+    public string? DataAssetsJson { get; set; }
 
     // Fabric integration — the lakehouse item that IS this data product's source asset
     public string? SourceLakehouseItemId { get; set; }
@@ -36,6 +41,7 @@ public class DataProduct
     // Navigation properties
     public Institution Institution { get; set; } = null!;
     public ICollection<AccessRequest> AccessRequests { get; set; } = new List<AccessRequest>();
+    public ICollection<DataProductDataAsset> DataProductDataAssets { get; set; } = new List<DataProductDataAsset>();
 
     // Helper methods for JSON arrays
     public List<string> GetClassifications() =>
@@ -47,4 +53,16 @@ public class DataProduct
         string.IsNullOrEmpty(GlossaryTermsJson)
             ? new List<string>()
             : System.Text.Json.JsonSerializer.Deserialize<List<string>>(GlossaryTermsJson) ?? new List<string>();
+
+    public List<DataAssetInfo> GetDataAssets() =>
+        string.IsNullOrEmpty(DataAssetsJson)
+            ? new List<DataAssetInfo>()
+            : System.Text.Json.JsonSerializer.Deserialize<List<DataAssetInfo>>(DataAssetsJson) ?? new List<DataAssetInfo>();
+}
+
+public class DataAssetInfo
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Type { get; set; }
+    public string? Description { get; set; }
 }

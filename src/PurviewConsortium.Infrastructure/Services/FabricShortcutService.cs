@@ -322,7 +322,7 @@ public class FabricShortcutService : IFabricShortcutService
     /// <summary>
     /// Acquires a Fabric access token for the given tenant via client credentials.
     /// </summary>
-    private async Task<string> GetFabricTokenAsync(
+    protected virtual async Task<string> GetFabricTokenAsync(
         string tenantId,
         CancellationToken cancellationToken)
     {

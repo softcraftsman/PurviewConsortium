@@ -7,6 +7,8 @@ public class DataProductSyncResult
     public string? Description { get; set; }
     public string? Owner { get; set; }
     public string? OwnerEmail { get; set; }
+    /// <summary>The Azure AD Object ID of the owner (GUID from contacts.owner), used for Graph API resolution.</summary>
+    public string? OwnerObjectId { get; set; }
     public string? SourceSystem { get; set; }
     public string? SchemaJson { get; set; }
     public List<string> Classifications { get; set; } = new();
@@ -23,22 +25,71 @@ public class DataProductSyncResult
     public bool Endorsed { get; set; }
     public string? UpdateFrequency { get; set; }
     public string? Documentation { get; set; }
+    public string? UseCases { get; set; }
+    public int? DataQualityScore { get; set; }
+    public string? TermsOfUseUrl { get; set; }
+    public string? DocumentationUrl { get; set; }
+    public List<DataAssetSyncInfo> DataAssets { get; set; } = new();
+
+    /// <summary>Purview data asset IDs referenced by this data product (from termsOfUse/documentation).</summary>
+    public List<string> LinkedPurviewAssetIds { get; set; } = new();
+}
+
+public class DataAssetSyncInfo
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Type { get; set; }
+    public string? Description { get; set; }
+}
+
+/// <summary>
+/// Result of scanning a single Purview Data Asset from /datagovernance/catalog/dataAssets.
+/// </summary>
+public class DataAssetSyncResult
+{
+    public string PurviewAssetId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Type { get; set; }
+    public string? Description { get; set; }
+    public string? AssetType { get; set; }
+    public string? FullyQualifiedName { get; set; }
+    public string? AccountName { get; set; }
+    public string? WorkspaceName { get; set; }
+    public string? ProvisioningState { get; set; }
+    public DateTime? LastRefreshedAt { get; set; }
+    public DateTime? PurviewCreatedAt { get; set; }
+    public DateTime? PurviewLastModifiedAt { get; set; }
+    public string? ContactsJson { get; set; }
+    public string? ClassificationsJson { get; set; }
 }
 
 public interface IPurviewScannerService
 {
     /// <summary>
     /// Scans Purview Unified Catalog for Data Products.
-    /// When <paramref name="userAccessToken"/> is provided, uses On-Behalf-Of (OBO) flow
-    /// to obtain a Purview token with the user's permissions (which can see all governance domains).
-    /// Falls back to client credentials when no user token is available.
+    /// Uses client credentials (service principal) to authenticate with Purview.
     /// When <paramref name="consortiumDomainIds"/> is provided, only Data Products in those
     /// governance domains are returned.
     /// </summary>
     Task<List<DataProductSyncResult>> ScanForShareableDataProductsAsync(
         string purviewAccountName,
         string tenantId,
-        string? userAccessToken = null,
         string? consortiumDomainIds = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches all Data Assets from the Purview Unified Catalog.
+    /// </summary>
+    Task<List<DataAssetSyncResult>> ScanForDataAssetsAsync(
+        string tenantId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches the detail for a single data product from Purview and extracts linked data asset IDs
+    /// from termsOfUse and documentation arrays.
+    /// </summary>
+    Task<List<string>> FetchProductLinkedAssetIdsAsync(
+        string purviewProductId,
+        string tenantId,
         CancellationToken cancellationToken = default);
 }

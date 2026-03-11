@@ -22,10 +22,17 @@ import {
   Field,
   MessageBar,
   MessageBarBody,
+  Table,
+  TableHeader,
+  TableHeaderCell,
+  TableRow,
+  TableBody,
+  TableCell,
 } from '@fluentui/react-components';
 import {
   ArrowLeft24Regular,
   LockOpen24Regular,
+  Open24Regular,
 } from '@fluentui/react-icons';
 import { catalogApi, requestsApi } from '../api';
 
@@ -165,11 +172,16 @@ export default function DataProductDetailPage() {
           Details
         </Text>
         <div className={styles.meta}>
-          <MetaField label="Owner" value={product.owner} />
+          <MetaField label="Data Product Owner" value={product.owner} />
           <MetaField label="Owner Email" value={product.ownerEmail} />
           <MetaField label="Source System" value={product.sourceSystem} />
           <MetaField label="Sensitivity Label" value={product.sensitivityLabel} />
           <MetaField label="Data Assets" value={product.assetCount.toString()} />
+          <MetaField label="Update Frequency" value={product.updateFrequency} />
+          <MetaField
+            label="Data Quality Score"
+            value={product.dataQualityScore != null ? `${product.dataQualityScore}%` : undefined}
+          />
           <MetaField label="Contact" value={product.institutionContactEmail} />
           <MetaField
             label="Source Lakehouse Item ID"
@@ -196,6 +208,99 @@ export default function DataProductDetailPage() {
           />
         </div>
       </div>
+
+      {/* Use Cases */}
+      {product.useCases && (
+        <div className={styles.section}>
+          <Text as="h2" size={600} weight="semibold" block>
+            Use Cases
+          </Text>
+          <Text block style={{ whiteSpace: 'pre-wrap' }}>
+            {product.useCases}
+          </Text>
+        </div>
+      )}
+
+      {/* Links */}
+      {(product.termsOfUseUrl || product.documentationUrl) && (
+        <div className={styles.section}>
+          <Text as="h2" size={600} weight="semibold" block>
+            Links
+          </Text>
+          <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+            {product.termsOfUseUrl && (
+              <Button
+                as="a"
+                href={product.termsOfUseUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                appearance="outline"
+                icon={<Open24Regular />}
+              >
+                Terms of Use
+              </Button>
+            )}
+            {product.documentationUrl && (
+              <Button
+                as="a"
+                href={product.documentationUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                appearance="outline"
+                icon={<Open24Regular />}
+              >
+                Documentation
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Data Assets Table */}
+      {product.dataAssets && product.dataAssets.length > 0 && (
+        <div className={styles.section}>
+          <Text as="h2" size={600} weight="semibold" block>
+            Data Assets ({product.dataAssets.length})
+          </Text>
+          <Table style={{ marginTop: '8px' }} size="small">
+            <TableHeader>
+              <TableRow>
+                <TableHeaderCell>Name</TableHeaderCell>
+                <TableHeaderCell>Asset Type</TableHeaderCell>
+                <TableHeaderCell>Workspace</TableHeaderCell>
+                <TableHeaderCell>State</TableHeaderCell>
+                <TableHeaderCell>Last Refreshed</TableHeaderCell>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {product.dataAssets.map((asset) => (
+                <TableRow key={asset.id}>
+                  <TableCell>
+                    <div>
+                      <Text weight="semibold">{asset.name}</Text>
+                      {asset.description && (
+                        <Text size={200} block>
+                          {asset.description}
+                        </Text>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge appearance="outline" color="informative" size="small">
+                      {formatAssetType(asset.assetType)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{asset.workspaceName ?? '—'}</TableCell>
+                  <TableCell>
+                    <StateBadge state={asset.provisioningState} />
+                  </TableCell>
+                  <TableCell>{formatDate(asset.lastRefreshedAt)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       {/* Classifications & Glossary Terms */}
       <div className={styles.section}>
@@ -336,5 +441,52 @@ function MetaField({ label, value }: { label: string; value?: string | null }) {
       </Text>
       <Text>{value || '—'}</Text>
     </div>
+  );
+}
+
+function formatAssetType(assetType?: string): string {
+  if (!assetType) return '—';
+  const map: Record<string, string> = {
+    fabric_lakehouse: 'Fabric Lakehouse',
+    fabric_lakehouse_path: 'Fabric Lakehouse Path',
+    fabric_lake_warehouse: 'Fabric Lake Warehouse',
+    powerbi_dataset: 'Power BI Dataset',
+    azure_blob_container: 'Azure Blob Container',
+    azure_datalake_gen2_path: 'ADLS Gen2 Path',
+    azure_datalake_gen2_resource_set: 'ADLS Gen2 Resource Set',
+    azure_ml: 'Azure ML',
+  };
+  return map[assetType] ?? assetType.replace(/_/g, ' ');
+}
+
+function formatDate(dateStr?: string): string {
+  if (!dateStr) return '—';
+  try {
+    return new Date(dateStr).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+function StateBadge({ state }: { state?: string }) {
+  if (!state) return <Text>—</Text>;
+  const color =
+    state === 'Succeeded'
+      ? 'success'
+      : state === 'SoftDeleted'
+        ? 'warning'
+        : 'informative';
+  return (
+    <Badge
+      appearance="filled"
+      color={color as 'success' | 'warning' | 'informative'}
+      size="small"
+    >
+      {state}
+    </Badge>
   );
 }

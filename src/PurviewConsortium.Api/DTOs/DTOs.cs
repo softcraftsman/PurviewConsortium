@@ -70,7 +70,36 @@ public record DataProductDetailDto(
     DateTime? LastSyncedFromPurview,
     DateTime CreatedDate,
     AccessRequestStatusDto? CurrentUserRequest,
-    int AssetCount);
+    int AssetCount,
+    string? UseCases,
+    int? DataQualityScore,
+    string? UpdateFrequency,
+    string? TermsOfUseUrl,
+    string? DocumentationUrl,
+    List<DataAssetListItemDto> DataAssets);
+
+// --- Data Asset List DTOs ---
+
+public record DataAssetListItemDto(
+    Guid Id,
+    string PurviewAssetId,
+    string Name,
+    string? Type,
+    string? Description,
+    string? AssetType,
+    string? FullyQualifiedName,
+    string? AccountName,
+    string? WorkspaceName,
+    string? ProvisioningState,
+    DateTime? LastRefreshedAt,
+    DateTime? PurviewCreatedAt,
+    DateTime? PurviewLastModifiedAt,
+    Guid InstitutionId,
+    string InstitutionName);
+
+public record DataAssetListResponseDto(
+    List<DataAssetListItemDto> Items,
+    int TotalCount);
 
 public record AccessRequestStatusDto(
     Guid RequestId,

@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using PurviewConsortium.Api.DTOs;
 using PurviewConsortium.Core.Entities;
 using PurviewConsortium.Core.Interfaces;
+using PurviewConsortium.Infrastructure.Data;
 
 namespace PurviewConsortium.Api.Controllers;
 
@@ -13,21 +15,27 @@ public class CatalogController : ControllerBase
 {
     private readonly ICatalogSearchService _searchService;
     private readonly IDataProductRepository _dataProductRepo;
+    private readonly IDataAssetRepository _dataAssetRepo;
     private readonly IInstitutionRepository _institutionRepo;
     private readonly IAccessRequestRepository _accessRequestRepo;
+    private readonly ConsortiumDbContext _dbContext;
     private readonly ILogger<CatalogController> _logger;
 
     public CatalogController(
         ICatalogSearchService searchService,
         IDataProductRepository dataProductRepo,
+        IDataAssetRepository dataAssetRepo,
         IInstitutionRepository institutionRepo,
         IAccessRequestRepository accessRequestRepo,
+        ConsortiumDbContext dbContext,
         ILogger<CatalogController> logger)
     {
         _searchService = searchService;
         _dataProductRepo = dataProductRepo;
+        _dataAssetRepo = dataAssetRepo;
         _institutionRepo = institutionRepo;
         _accessRequestRepo = accessRequestRepo;
+        _dbContext = dbContext;
         _logger = logger;
     }
 
@@ -102,6 +110,8 @@ public class CatalogController : ControllerBase
             }
         }
 
+        var linkedAssets = await GetLinkedDataAssetsAsync(id);
+
         return Ok(new DataProductDetailDto(
             product.Id,
             product.PurviewQualifiedName,
@@ -122,7 +132,13 @@ public class CatalogController : ControllerBase
             product.LastSyncedFromPurview,
             product.CreatedDate,
             currentRequest,
-            product.AssetCount
+            product.AssetCount,
+            product.UseCases,
+            product.DataQualityScore,
+            product.UpdateFrequency,
+            product.TermsOfUseUrl,
+            product.DocumentationUrl,
+            linkedAssets
         ));
     }
 
@@ -141,6 +157,8 @@ public class CatalogController : ControllerBase
         _logger.LogInformation(
             "Updated Data Product {ProductId} SourceLakehouseItemId to {ItemId}",
             id, dto.SourceLakehouseItemId);
+
+        var linkedAssets = await GetLinkedDataAssetsAsync(id);
 
         return Ok(new DataProductDetailDto(
             product.Id,
@@ -162,7 +180,13 @@ public class CatalogController : ControllerBase
             product.LastSyncedFromPurview,
             product.CreatedDate,
             null,
-            product.AssetCount
+            product.AssetCount,
+            product.UseCases,
+            product.DataQualityScore,
+            product.UpdateFrequency,
+            product.TermsOfUseUrl,
+            product.DocumentationUrl,
+            linkedAssets
         ));
     }
 
@@ -198,6 +222,58 @@ public class CatalogController : ControllerBase
         ));
     }
 
+    /// <summary>List all Data Assets in the catalog.</summary>
+    [HttpGet("data-assets")]
+    public async Task<ActionResult<DataAssetListResponseDto>> GetDataAssets(
+        [FromQuery] string? search,
+        [FromQuery] string? assetType,
+        [FromQuery] string? institution)
+    {
+        var assets = await _dataAssetRepo.GetAllAsync();
+
+        // Apply filters
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            assets = assets.Where(a =>
+                a.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                (a.Description?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (a.WorkspaceName?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
+            ).ToList();
+        }
+
+        if (!string.IsNullOrWhiteSpace(assetType))
+        {
+            assets = assets.Where(a =>
+                string.Equals(a.AssetType, assetType, StringComparison.OrdinalIgnoreCase)
+            ).ToList();
+        }
+
+        if (Guid.TryParse(institution, out var instId))
+        {
+            assets = assets.Where(a => a.InstitutionId == instId).ToList();
+        }
+
+        var items = assets.Select(a => new DataAssetListItemDto(
+            a.Id,
+            a.PurviewAssetId,
+            a.Name,
+            a.Type,
+            a.Description,
+            a.AssetType,
+            a.FullyQualifiedName,
+            a.AccountName,
+            a.WorkspaceName,
+            a.ProvisioningState,
+            a.LastRefreshedAt,
+            a.PurviewCreatedAt,
+            a.PurviewLastModifiedAt,
+            a.InstitutionId,
+            a.Institution.Name
+        )).ToList();
+
+        return Ok(new DataAssetListResponseDto(items, items.Count));
+    }
+
     /// <summary>Get available filter values for the catalog.</summary>
     [HttpGet("filters")]
     public async Task<ActionResult<CatalogFiltersDto>> GetFilters()
@@ -219,6 +295,33 @@ public class CatalogController : ControllerBase
             SensitivityLabels: searchResult.Facets.GetValueOrDefault("sensitivityLabel")?.Select(f => f.Value).ToList() ?? new(),
             SourceSystems: searchResult.Facets.GetValueOrDefault("sourceSystem")?.Select(f => f.Value).ToList() ?? new()
         ));
+    }
+
+    /// <summary>Get linked data assets for a data product from the join table.</summary>
+    private async Task<List<DataAssetListItemDto>> GetLinkedDataAssetsAsync(Guid dataProductId)
+    {
+        return await _dbContext.DataProductDataAssets
+            .Where(link => link.DataProductId == dataProductId)
+            .Include(link => link.DataAsset)
+                .ThenInclude(a => a.Institution)
+            .Select(link => new DataAssetListItemDto(
+                link.DataAsset.Id,
+                link.DataAsset.PurviewAssetId,
+                link.DataAsset.Name,
+                link.DataAsset.Type,
+                link.DataAsset.Description,
+                link.DataAsset.AssetType,
+                link.DataAsset.FullyQualifiedName,
+                link.DataAsset.AccountName,
+                link.DataAsset.WorkspaceName,
+                link.DataAsset.ProvisioningState,
+                link.DataAsset.LastRefreshedAt,
+                link.DataAsset.PurviewCreatedAt,
+                link.DataAsset.PurviewLastModifiedAt,
+                link.DataAsset.InstitutionId,
+                link.DataAsset.Institution.Name
+            ))
+            .ToListAsync();
     }
 
     private string? GetCurrentUserId() =>

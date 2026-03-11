@@ -148,16 +148,13 @@ public class InstitutionsController : ControllerBase
         var institution = await _institutionRepo.GetByIdAsync(id);
         if (institution == null) return NotFound();
 
-        // Capture user's bearer token before spawning background task (for OBO flow)
-        var userToken = ExtractBearerToken();
-
         _ = Task.Run(async () =>
         {
             using var scope = _scopeFactory.CreateScope();
             var orchestrator = scope.ServiceProvider.GetRequiredService<ISyncOrchestrator>();
             try
             {
-                await orchestrator.ScanInstitutionAsync(id, userToken);
+                await orchestrator.ScanInstitutionAsync(id);
             }
             catch (Exception ex)
             {
@@ -175,16 +172,6 @@ public class InstitutionsController : ControllerBase
         });
 
         return Accepted(new { message = $"Scan triggered for {institution.Name}. Check sync history for results." });
-    }
-
-    private string? ExtractBearerToken()
-    {
-        var authHeader = HttpContext.Request.Headers["Authorization"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-        {
-            return authHeader.Substring("Bearer ".Length).Trim();
-        }
-        return null;
     }
 
     private string? GetCurrentUserId() =>

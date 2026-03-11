@@ -21,6 +21,7 @@ public class Institution
 
     // Navigation properties
     public ICollection<DataProduct> DataProducts { get; set; } = new List<DataProduct>();
+    public ICollection<DataAsset> DataAssets { get; set; } = new List<DataAsset>();
     public ICollection<AccessRequest> IncomingRequests { get; set; } = new List<AccessRequest>();
     public ICollection<SyncHistory> SyncHistories { get; set; } = new List<SyncHistory>();
 }

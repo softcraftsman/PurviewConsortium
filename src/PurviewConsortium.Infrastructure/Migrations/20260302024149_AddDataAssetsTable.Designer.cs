@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PurviewConsortium.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using PurviewConsortium.Infrastructure.Data;
 namespace PurviewConsortium.Infrastructure.Migrations
 {
     [DbContext(typeof(ConsortiumDbContext))]
-    partial class ConsortiumDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260302024149_AddDataAssetsTable")]
+    partial class AddDataAssetsTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -411,21 +414,6 @@ namespace PurviewConsortium.Infrastructure.Migrations
                         });
                 });
 
-            modelBuilder.Entity("PurviewConsortium.Core.Entities.DataProductDataAsset", b =>
-                {
-                    b.Property<Guid>("DataProductId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("DataAssetId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("DataProductId", "DataAssetId");
-
-                    b.HasIndex("DataAssetId");
-
-                    b.ToTable("DataProductDataAssets");
-                });
-
             modelBuilder.Entity("PurviewConsortium.Core.Entities.Institution", b =>
                 {
                     b.Property<Guid>("Id")
@@ -633,25 +621,6 @@ namespace PurviewConsortium.Infrastructure.Migrations
                     b.Navigation("Institution");
                 });
 
-            modelBuilder.Entity("PurviewConsortium.Core.Entities.DataProductDataAsset", b =>
-                {
-                    b.HasOne("PurviewConsortium.Core.Entities.DataAsset", "DataAsset")
-                        .WithMany("DataProductDataAssets")
-                        .HasForeignKey("DataAssetId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("PurviewConsortium.Core.Entities.DataProduct", "DataProduct")
-                        .WithMany("DataProductDataAssets")
-                        .HasForeignKey("DataProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("DataAsset");
-
-                    b.Navigation("DataProduct");
-                });
-
             modelBuilder.Entity("PurviewConsortium.Core.Entities.SyncHistory", b =>
                 {
                     b.HasOne("PurviewConsortium.Core.Entities.Institution", "Institution")
@@ -673,16 +642,9 @@ namespace PurviewConsortium.Infrastructure.Migrations
                     b.Navigation("Institution");
                 });
 
-            modelBuilder.Entity("PurviewConsortium.Core.Entities.DataAsset", b =>
-                {
-                    b.Navigation("DataProductDataAssets");
-                });
-
             modelBuilder.Entity("PurviewConsortium.Core.Entities.DataProduct", b =>
                 {
                     b.Navigation("AccessRequests");
-
-                    b.Navigation("DataProductDataAssets");
                 });
 
             modelBuilder.Entity("PurviewConsortium.Core.Entities.Institution", b =>

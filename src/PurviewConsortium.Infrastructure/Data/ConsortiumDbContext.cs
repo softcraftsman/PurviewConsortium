@@ -14,6 +14,8 @@ public class ConsortiumDbContext : DbContext
     public DbSet<SyncHistory> SyncHistories => Set<SyncHistory>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<UserRoleAssignment> UserRoleAssignments => Set<UserRoleAssignment>();
+    public DbSet<DataAsset> DataAssets => Set<DataAsset>();
+    public DbSet<DataProductDataAsset> DataProductDataAssets => Set<DataProductDataAsset>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -104,6 +106,45 @@ public class ConsortiumDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        // DataAsset
+        modelBuilder.Entity<DataAsset>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.PurviewAssetId).HasMaxLength(256).IsRequired();
+            entity.Property(e => e.Name).HasMaxLength(512).IsRequired();
+            entity.Property(e => e.Type).HasMaxLength(128);
+            entity.Property(e => e.Description).HasMaxLength(4000);
+            entity.Property(e => e.AssetType).HasMaxLength(256);
+            entity.Property(e => e.FullyQualifiedName).HasMaxLength(2048);
+            entity.Property(e => e.AccountName).HasMaxLength(256);
+            entity.Property(e => e.WorkspaceName).HasMaxLength(256);
+            entity.Property(e => e.ProvisioningState).HasMaxLength(64);
+
+            entity.HasIndex(e => new { e.InstitutionId, e.PurviewAssetId }).IsUnique();
+            entity.HasIndex(e => e.Name);
+
+            entity.HasOne(e => e.Institution)
+                .WithMany(i => i.DataAssets)
+                .HasForeignKey(e => e.InstitutionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // DataProductDataAsset (many-to-many join table)
+        modelBuilder.Entity<DataProductDataAsset>(entity =>
+        {
+            entity.HasKey(e => new { e.DataProductId, e.DataAssetId });
+
+            entity.HasOne(e => e.DataProduct)
+                .WithMany(dp => dp.DataProductDataAssets)
+                .HasForeignKey(e => e.DataProductId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.DataAsset)
+                .WithMany(da => da.DataProductDataAssets)
+                .HasForeignKey(e => e.DataAssetId)
+                .OnDelete(DeleteBehavior.NoAction); // Avoid cascade cycle (both DataProduct and DataAsset cascade from Institution)
+        });
+
         // AuditLog
         modelBuilder.Entity<AuditLog>(entity =>
         {
@@ -192,6 +233,12 @@ public class ConsortiumDbContext : DbContext
                 GlossaryTermsJson = "[\"Consortium-Shareable\",\"Demographics\"]",
                 SensitivityLabel = "Confidential",
                 IsListed = true,
+                UpdateFrequency = "Weekly",
+                DataQualityScore = 87,
+                UseCases = "Population health studies, outcome analysis, and demographic trend research across the consortium.",
+                TermsOfUseUrl = "https://contoso.edu/data-sharing/terms",
+                DocumentationUrl = "https://contoso.edu/datasets/patient-demographics/docs",
+                DataAssetsJson = "[{\"Name\":\"patient_demographics_v2\",\"Type\":\"Table\",\"Description\":\"Core demographics table with de-identified records\"},{\"Name\":\"geographic_regions\",\"Type\":\"Table\",\"Description\":\"Region lookup and mapping data\"}]",
                 CreatedDate = new DateTime(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc),
                 ModifiedDate = new DateTime(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc)
             },
@@ -209,6 +256,12 @@ public class ConsortiumDbContext : DbContext
                 GlossaryTermsJson = "[\"Consortium-Shareable\",\"Clinical-Trials\"]",
                 SensitivityLabel = "General",
                 IsListed = true,
+                UpdateFrequency = "Monthly",
+                DataQualityScore = 92,
+                UseCases = "Cross-institutional research collaboration, meta-analyses of clinical trials, and regulatory reporting.",
+                TermsOfUseUrl = "https://fabrikam.org/data-governance/terms",
+                DocumentationUrl = "https://fabrikam.org/datasets/clinical-trials/documentation",
+                DataAssetsJson = "[{\"Name\":\"trials_summary_2020_2025\",\"Type\":\"Table\",\"Description\":\"Aggregated trial results and outcomes\"},{\"Name\":\"trial_metadata\",\"Type\":\"Table\",\"Description\":\"Trial identifiers, phases, and sponsors\"},{\"Name\":\"outcomes_analysis\",\"Type\":\"View\",\"Description\":\"Pre-computed outcome statistics\"}]",
                 CreatedDate = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc),
                 ModifiedDate = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc)
             }

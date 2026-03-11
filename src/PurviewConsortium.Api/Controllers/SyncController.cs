@@ -47,19 +47,13 @@ public class SyncController : ControllerBase
     [HttpPost("trigger")]
     public ActionResult TriggerFullScan()
     {
-        // Capture the user's bearer token BEFORE spawning the background task
-        // (HttpContext is not available after the request ends).
-        // This token will be used in the OBO flow to get a Purview token
-        // with the user's permissions (which can see all governance domains).
-        var userToken = ExtractBearerToken();
-
         _ = Task.Run(async () =>
         {
             using var scope = _scopeFactory.CreateScope();
             var orchestrator = scope.ServiceProvider.GetRequiredService<ISyncOrchestrator>();
             try
             {
-                await orchestrator.ScanAllInstitutionsAsync(userToken);
+                await orchestrator.ScanAllInstitutionsAsync();
             }
             catch (Exception ex)
             {
@@ -67,15 +61,5 @@ public class SyncController : ControllerBase
             }
         });
         return Accepted(new { message = "Full scan triggered for all institutions." });
-    }
-
-    private string? ExtractBearerToken()
-    {
-        var authHeader = HttpContext.Request.Headers["Authorization"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-        {
-            return authHeader.Substring("Bearer ".Length).Trim();
-        }
-        return null;
     }
 }
