@@ -98,6 +98,9 @@ jobs:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
         run: npm run build
 
+      - name: Include Static Web App config in build output
+        run: cp src/PurviewConsortium.Web/staticwebapp.config.json src/PurviewConsortium.Web/dist/staticwebapp.config.json
+
       - name: Upload web artifact
         uses: actions/upload-artifact@v4
         with:
@@ -160,8 +163,8 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: upload
-          app_location: src/PurviewConsortium.Web
-          output_location: dist
+          app_location: src/PurviewConsortium.Web/dist
+          output_location: ""
           skip_app_build: true
 
   close_pull_request:
