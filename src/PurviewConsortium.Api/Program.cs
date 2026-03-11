@@ -62,17 +62,34 @@ try
             o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
         });
 
-    // CORS — allow SPA dev server
+    // CORS — allow SPA frontend (configureable via environment variable or appsettings)
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("AllowSPA", policy =>
         {
-            var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-                ?? new[] { "http://localhost:5173" };
+            // Try environment variable first, then config, then default to localhost
+            var originsEnv = Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS");
+            string[] origins;
+            
+            if (!string.IsNullOrEmpty(originsEnv))
+            {
+                // Parse comma-separated origins from environment variable
+                origins = originsEnv.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(o => o.Trim())
+                    .ToArray();
+            }
+            else
+            {
+                origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                    ?? new[] { "http://localhost:5173" };
+            }
+            
             policy.WithOrigins(origins)
                 .AllowAnyHeader()
                 .AllowAnyMethod()
                 .AllowCredentials();
+            
+            Log.Information("CORS enabled for origins: {Origins}", string.Join(", ", origins));
         });
     });
 
