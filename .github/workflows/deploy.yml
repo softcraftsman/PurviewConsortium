@@ -74,6 +74,8 @@ jobs:
     if: github.event.action != 'closed'
     permissions:
       contents: read
+    environment:
+      name: production
 
     steps:
       - name: Checkout repository
