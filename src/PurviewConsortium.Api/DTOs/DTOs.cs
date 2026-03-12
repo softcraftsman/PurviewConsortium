@@ -46,7 +46,6 @@ public record DataProductListDto(
     string? SourceSystem,
     string? SensitivityLabel,
     List<string> Classifications,
-    List<string> GlossaryTerms,
     Guid InstitutionId,
     string InstitutionName,
     DateTime? PurviewLastModified,
@@ -62,13 +61,11 @@ public record DataProductDetailDto(
     string? SourceSystem,
     string? SchemaJson,
     List<string> Classifications,
-    List<string> GlossaryTerms,
     string? SensitivityLabel,
     Guid InstitutionId,
     string InstitutionName,
     string InstitutionContactEmail,
     string InstitutionTenantId,
-    string? SourceLakehouseItemId,
     DateTime? PurviewLastModified,
     DateTime? LastSyncedFromPurview,
     DateTime CreatedDate,
@@ -92,8 +89,6 @@ public record DataAssetListItemDto(
     string? AssetType,
     string? FullyQualifiedName,
     string? AccountName,
-    string? WorkspaceName,
-    string? ProvisioningState,
     DateTime? LastRefreshedAt,
     DateTime? PurviewCreatedAt,
     DateTime? PurviewLastModifiedAt,
@@ -238,6 +233,3 @@ public record FulfillmentDetailsDto(
     List<string> MissingFields);
 
 // --- Admin DTOs ---
-
-public record UpdateDataProductFabricDto(
-    string? SourceLakehouseItemId);

@@ -76,9 +76,6 @@ export default function DataProductDetailPage() {
   const [targetLakehouse, setTargetLakehouse] = useState('');
   const [durationDays, setDurationDays] = useState('');
 
-  const [editLakehouseId, setEditLakehouseId] = useState('');
-  const [editSourceOpen, setEditSourceOpen] = useState(false);
-
   const { data: product, isLoading } = useQuery({
     queryKey: ['product', id],
     queryFn: () => catalogApi.getProduct(id!).then((r) => r.data),
@@ -86,17 +83,6 @@ export default function DataProductDetailPage() {
   });
 
   const [requestError, setRequestError] = useState<string | null>(null);
-
-  const saveSourceLakehouse = useMutation({
-    mutationFn: () =>
-      catalogApi.updateProductFabric(id!, {
-        sourceLakehouseItemId: editLakehouseId || undefined,
-      }),
-    onSuccess: () => {
-      setEditSourceOpen(false);
-      queryClient.invalidateQueries({ queryKey: ['product', id] });
-    },
-  });
 
   const submitRequest = useMutation({
     mutationFn: () =>
@@ -192,21 +178,6 @@ export default function DataProductDetailPage() {
           />
           <MetaField label="Contact" value={product.institutionContactEmail} />
           <MetaField
-            label="Source Lakehouse Item ID"
-            value={product.sourceLakehouseItemId || '(not configured)'}
-          />
-          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <Button
-              size="small"
-              onClick={() => {
-                setEditLakehouseId(product.sourceLakehouseItemId || '');
-                setEditSourceOpen(true);
-              }}
-            >
-              {product.sourceLakehouseItemId ? 'Edit' : 'Set Source Lakehouse'}
-            </Button>
-          </div>
-          <MetaField
             label="Last Updated in Purview"
             value={
               product.purviewLastModified
@@ -275,8 +246,7 @@ export default function DataProductDetailPage() {
               <TableRow>
                 <TableHeaderCell>Name</TableHeaderCell>
                 <TableHeaderCell>Asset Type</TableHeaderCell>
-                <TableHeaderCell>Workspace</TableHeaderCell>
-                <TableHeaderCell>State</TableHeaderCell>
+                <TableHeaderCell>Description</TableHeaderCell>
                 <TableHeaderCell>Last Refreshed</TableHeaderCell>
               </TableRow>
             </TableHeader>
@@ -284,23 +254,15 @@ export default function DataProductDetailPage() {
               {product.dataAssets.map((asset) => (
                 <TableRow key={asset.id}>
                   <TableCell>
-                    <div>
-                      <Text weight="semibold">{asset.name}</Text>
-                      {asset.description && (
-                        <Text size={200} block>
-                          {asset.description}
-                        </Text>
-                      )}
-                    </div>
+                    <Text weight="semibold">{asset.name}</Text>
                   </TableCell>
                   <TableCell>
                     <Badge appearance="outline" color="informative" size="small">
                       {formatAssetType(asset.assetType)}
                     </Badge>
                   </TableCell>
-                  <TableCell>{asset.workspaceName ?? '—'}</TableCell>
                   <TableCell>
-                    <StateBadge state={asset.provisioningState} />
+                    <Text size={300}>{asset.description || '—'}</Text>
                   </TableCell>
                   <TableCell>{formatDate(asset.lastRefreshedAt)}</TableCell>
                 </TableRow>
@@ -326,59 +288,12 @@ export default function DataProductDetailPage() {
         </div>
       </div>
 
-      <div className={styles.section}>
-        <Text as="h2" size={600} weight="semibold" block>
-          Glossary Terms
-        </Text>
-        <div className={styles.badges}>
-          {product.glossaryTerms.length > 0
-            ? product.glossaryTerms.map((t) => (
-                <Badge key={t} appearance="tint" color="brand">
-                  {t}
-                </Badge>
-              ))
-            : <Text size={300}>None</Text>}
-        </div>
-      </div>
-
       <Divider style={{ margin: '24px 0' }} />
 
       {/* Qualified Name */}
       <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
         Purview Qualified Name: {product.purviewQualifiedName}
       </Text>
-
-      {/* Edit Source Lakehouse Dialog */}
-      <Dialog open={editSourceOpen} onOpenChange={(_, d) => setEditSourceOpen(d.open)}>
-        <DialogSurface>
-          <DialogTitle>Set Source Lakehouse Item ID</DialogTitle>
-          <DialogBody>
-            <DialogContent>
-              <Text size={300} block style={{ marginBottom: '8px' }}>
-                This is the Fabric lakehouse item ID of the Purview Data Asset. 
-                It will be used as the source when creating cross-tenant shortcuts.
-              </Text>
-              <Field label="Source Lakehouse Item ID">
-                <Input
-                  value={editLakehouseId}
-                  onChange={(_, d) => setEditLakehouseId(d.value)}
-                  placeholder="Fabric lakehouse item GUID"
-                />
-              </Field>
-            </DialogContent>
-          </DialogBody>
-          <DialogActions>
-            <Button onClick={() => setEditSourceOpen(false)}>Cancel</Button>
-            <Button
-              appearance="primary"
-              disabled={saveSourceLakehouse.isPending}
-              onClick={() => saveSourceLakehouse.mutate()}
-            >
-              {saveSourceLakehouse.isPending ? 'Saving...' : 'Save'}
-            </Button>
-          </DialogActions>
-        </DialogSurface>
-      </Dialog>
 
       {/* Request Access Dialog */}
       <Dialog open={requestDialogOpen} onOpenChange={(_, d) => setRequestDialogOpen(d.open)}>
@@ -506,21 +421,3 @@ function formatDate(dateStr?: string): string {
   }
 }
 
-function StateBadge({ state }: { state?: string }) {
-  if (!state) return <Text>—</Text>;
-  const color =
-    state === 'Succeeded'
-      ? 'success'
-      : state === 'SoftDeleted'
-        ? 'warning'
-        : 'informative';
-  return (
-    <Badge
-      appearance="filled"
-      color={color as 'success' | 'warning' | 'informative'}
-      size="small"
-    >
-      {state}
-    </Badge>
-  );
-}

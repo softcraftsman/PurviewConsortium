@@ -78,7 +78,7 @@ public class CatalogController : ControllerBase
         return Ok(new CatalogSearchResponseDto(
             Items: result.Items.Select(i => new DataProductListDto(
                 i.Id, i.Name, i.Description, i.Owner, i.SourceSystem,
-                i.SensitivityLabel, i.Classifications, i.GlossaryTerms,
+                i.SensitivityLabel, i.Classifications,
                 i.InstitutionId, i.InstitutionName, i.PurviewLastModified, i.AssetCount
             )).ToList(),
             TotalCount: result.TotalCount,
@@ -121,66 +121,15 @@ public class CatalogController : ControllerBase
             product.SourceSystem,
             product.SchemaJson,
             product.GetClassifications(),
-            product.GetGlossaryTerms(),
             product.SensitivityLabel,
             product.InstitutionId,
             product.Institution.Name,
             product.Institution.PrimaryContactEmail,
             product.Institution.TenantId,
-            product.SourceLakehouseItemId,
             product.PurviewLastModified,
             product.LastSyncedFromPurview,
             product.CreatedDate,
             currentRequest,
-            product.AssetCount,
-            product.UseCases,
-            product.DataQualityScore,
-            product.UpdateFrequency,
-            product.TermsOfUseUrl,
-            product.DocumentationUrl,
-            linkedAssets
-        ));
-    }
-
-    /// <summary>Update Fabric integration settings for a Data Product (admin).</summary>
-    [HttpPatch("products/{id:guid}/fabric")]
-    public async Task<ActionResult<DataProductDetailDto>> UpdateProductFabricSettings(
-        Guid id, [FromBody] UpdateDataProductFabricDto dto)
-    {
-        var product = await _dataProductRepo.GetByIdAsync(id);
-        if (product == null) return NotFound();
-
-        product.SourceLakehouseItemId = dto.SourceLakehouseItemId;
-        product.ModifiedDate = DateTime.UtcNow;
-        await _dataProductRepo.UpdateAsync(product);
-
-        _logger.LogInformation(
-            "Updated Data Product {ProductId} SourceLakehouseItemId to {ItemId}",
-            id, dto.SourceLakehouseItemId);
-
-        var linkedAssets = await GetLinkedDataAssetsAsync(id);
-
-        return Ok(new DataProductDetailDto(
-            product.Id,
-            product.PurviewQualifiedName,
-            product.Name,
-            product.Description,
-            product.Owner,
-            product.OwnerEmail,
-            product.SourceSystem,
-            product.SchemaJson,
-            product.GetClassifications(),
-            product.GetGlossaryTerms(),
-            product.SensitivityLabel,
-            product.InstitutionId,
-            product.Institution.Name,
-            product.Institution.PrimaryContactEmail,
-            product.Institution.TenantId,
-            product.SourceLakehouseItemId,
-            product.PurviewLastModified,
-            product.LastSyncedFromPurview,
-            product.CreatedDate,
-            null,
             product.AssetCount,
             product.UseCases,
             product.DataQualityScore,
@@ -263,8 +212,6 @@ public class CatalogController : ControllerBase
             a.AssetType,
             a.FullyQualifiedName,
             a.AccountName,
-            a.WorkspaceName,
-            a.ProvisioningState,
             a.LastRefreshedAt,
             a.PurviewCreatedAt,
             a.PurviewLastModifiedAt,
@@ -314,8 +261,6 @@ public class CatalogController : ControllerBase
                 link.DataAsset.AssetType,
                 link.DataAsset.FullyQualifiedName,
                 link.DataAsset.AccountName,
-                link.DataAsset.WorkspaceName,
-                link.DataAsset.ProvisioningState,
                 link.DataAsset.LastRefreshedAt,
                 link.DataAsset.PurviewCreatedAt,
                 link.DataAsset.PurviewLastModifiedAt,
