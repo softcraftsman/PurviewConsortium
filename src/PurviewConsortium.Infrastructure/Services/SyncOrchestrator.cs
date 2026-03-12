@@ -247,6 +247,18 @@ public class SyncOrchestrator : ISyncOrchestrator
                     institution.Name);
             }
 
+            // ── Resolve Terms of Use and Documentation URLs ────────────────
+            try
+            {
+                await ResolveLinkedDocumentUrlsAsync(institutionId, scanResults, cancellationToken);
+            }
+            catch (Exception urlEx)
+            {
+                _logger.LogWarning(urlEx,
+                    "Document URL resolution failed for {Name} — continuing",
+                    institution.Name);
+            }
+
             // ── Link Data Assets to Data Products ─────────────────────────
             try
             {
@@ -376,6 +388,81 @@ public class SyncOrchestrator : ISyncOrchestrator
                 "Linked {Count} data assets to products for {Name}",
                 linksCreated, institution.Name);
         }
+    }
+
+    /// <summary>
+    /// Returns the FullyQualifiedName of the first asset ID in <paramref name="assetIds"/>
+    /// that exists in <paramref name="fqnLookup"/>, or null if none is found.
+    /// </summary>
+    private static string? FirstFqn(List<string> assetIds, Dictionary<string, string> fqnLookup)
+    {
+        foreach (var id in assetIds)
+        {
+            if (fqnLookup.TryGetValue(id, out var fqn))
+                return fqn;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// After data assets have been synced, resolves Terms of Use and Documentation URLs
+    /// for data products by looking up the FullyQualifiedName of linked data assets.
+    /// This handles the case where Purview returns these links as arrays of dataAssetId
+    /// references rather than direct URL strings.
+    /// </summary>
+    private async Task ResolveLinkedDocumentUrlsAsync(
+        Guid institutionId,
+        List<DataProductSyncResult> scanResults,
+        CancellationToken cancellationToken)
+    {
+        var assets = await _dataAssetRepo.GetByInstitutionAsync(institutionId);
+        if (!assets.Any())
+            return;
+
+        // Build a lookup of PurviewAssetId -> FullyQualifiedName (URL) for assets that have one
+        var fqnLookup = assets
+            .Where(a => !string.IsNullOrEmpty(a.FullyQualifiedName))
+            .ToDictionary(a => a.PurviewAssetId, a => a.FullyQualifiedName!, StringComparer.OrdinalIgnoreCase);
+
+        if (!fqnLookup.Any())
+            return;
+
+        int updated = 0;
+
+        foreach (var result in scanResults)
+        {
+            // Resolve TermsOfUseUrl if not already populated
+            string? resolvedTermsUrl = result.TermsOfUseUrl;
+            if (string.IsNullOrEmpty(resolvedTermsUrl))
+                resolvedTermsUrl = FirstFqn(result.TermsOfUseAssetIds, fqnLookup);
+
+            // Resolve DocumentationUrl if not already populated
+            string? resolvedDocsUrl = result.DocumentationUrl;
+            if (string.IsNullOrEmpty(resolvedDocsUrl))
+                resolvedDocsUrl = FirstFqn(result.DocumentationAssetIds, fqnLookup);
+
+            // Only update if we resolved something new
+            bool termsChanged = !string.IsNullOrEmpty(resolvedTermsUrl) && resolvedTermsUrl != result.TermsOfUseUrl;
+            bool docsChanged = !string.IsNullOrEmpty(resolvedDocsUrl) && resolvedDocsUrl != result.DocumentationUrl;
+
+            if (!termsChanged && !docsChanged)
+                continue;
+
+            var product = await _dataProductRepo.GetByPurviewQualifiedNameAsync(
+                result.PurviewQualifiedName, institutionId);
+            if (product == null)
+                continue;
+
+            if (termsChanged) product.TermsOfUseUrl = resolvedTermsUrl;
+            if (docsChanged) product.DocumentationUrl = resolvedDocsUrl;
+            await _dataProductRepo.UpdateAsync(product);
+            updated++;
+        }
+
+        if (updated > 0)
+            _logger.LogInformation(
+                "Resolved document URLs for {Count} product(s) for institution {Id}",
+                updated, institutionId);
     }
 
     /// <summary>

@@ -33,6 +33,12 @@ public class DataProductSyncResult
 
     /// <summary>Purview data asset IDs referenced by this data product (from termsOfUse/documentation).</summary>
     public List<string> LinkedPurviewAssetIds { get; set; } = new();
+
+    /// <summary>Purview data asset IDs from the termsOfUse array specifically.</summary>
+    public List<string> TermsOfUseAssetIds { get; set; } = new();
+
+    /// <summary>Purview data asset IDs from the documentation array specifically.</summary>
+    public List<string> DocumentationAssetIds { get; set; } = new();
 }
 
 public class DataAssetSyncInfo
