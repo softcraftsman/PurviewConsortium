@@ -83,13 +83,24 @@ try
                 origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
                     ?? new[] { "http://localhost:5173" };
             }
-            
-            policy.WithOrigins(origins)
-                .AllowAnyHeader()
-                .AllowAnyMethod()
-                .AllowCredentials();
-            
-            Log.Information("CORS enabled for origins: {Origins}", string.Join(", ", origins));
+
+            var effectiveOrigins = origins.Where(o => !string.IsNullOrWhiteSpace(o)).ToArray();
+            if (effectiveOrigins.Length == 0)
+            {
+                // Fallback for misconfigured deployments to keep the API reachable from the SPA.
+                policy.AllowAnyOrigin()
+                    .AllowAnyHeader()
+                    .AllowAnyMethod();
+                Log.Warning("CORS_ALLOWED_ORIGINS is empty; using AllowAnyOrigin fallback.");
+            }
+            else
+            {
+                policy.WithOrigins(effectiveOrigins)
+                    .AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .AllowCredentials();
+                Log.Information("CORS enabled for origins: {Origins}", string.Join(", ", effectiveOrigins));
+            }
         });
     });
 

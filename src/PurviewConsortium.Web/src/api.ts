@@ -8,6 +8,17 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+api.interceptors.response.use(
+  (response) => {
+    const contentType = response.headers?.['content-type'] ?? '';
+    if (contentType.includes('text/html')) {
+      throw new Error('Unexpected HTML response from API. Check VITE_API_BASE_URL and deployment routing.');
+    }
+    return response;
+  },
+  (error) => Promise.reject(error)
+);
+
 // Attach bearer token to every request
 api.interceptors.request.use(async (config) => {
   const accounts = msalInstance.getAllAccounts();
