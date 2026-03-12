@@ -21,6 +21,7 @@ public class PurviewScannerService : IPurviewScannerService
     private const string PurviewScope = "https://purview.azure.net/.default";
     private const string GraphScope = "https://graph.microsoft.com/.default";
     private const string GraphBaseUrl = "https://graph.microsoft.com/v1.0";
+    private const int MaxDomainsPerPage = 200;
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
@@ -72,6 +73,9 @@ public class PurviewScannerService : IPurviewScannerService
             var accessToken = await GetAccessTokenAsync(tenantId, cancellationToken);
             var httpClient = _httpClientFactory.CreateClient("Purview");
 
+            // Fetch governance domain names once so GUID values can be resolved to readable names
+            var domainNames = await FetchGovernanceDomainNamesAsync(httpClient, accessToken, cancellationToken);
+
             var dataProducts = await FetchDataProductsFromUnifiedCatalogAsync(
                 httpClient, accessToken, cancellationToken);
 
@@ -99,7 +103,7 @@ public class PurviewScannerService : IPurviewScannerService
                     }
                 }
 
-                results.Add(MapDataProductToSyncResult(dp));
+                results.Add(MapDataProductToSyncResult(dp, domainNames));
             }
 
             // Resolve owner GUIDs to display names/emails via Microsoft Graph
@@ -120,7 +124,7 @@ public class PurviewScannerService : IPurviewScannerService
         return results;
     }
 
-    private async Task<string> GetAccessTokenAsync(string tenantId, CancellationToken cancellationToken)
+    protected virtual async Task<string> GetAccessTokenAsync(string tenantId, CancellationToken cancellationToken)
     {
         if (_useDeveloperCredential)
         {
@@ -177,6 +181,56 @@ public class PurviewScannerService : IPurviewScannerService
         var spTokenResult = await spCredential.GetTokenAsync(
             new Azure.Core.TokenRequestContext(new[] { GraphScope }), cancellationToken);
         return spTokenResult.Token;
+    }
+
+    /// <summary>
+    /// Fetches all governance domains from Purview and returns a dictionary of id → name.
+    /// This is used to resolve domain GUIDs to human-readable names when Purview returns
+    /// a plain GUID string in the governanceDomain field.
+    /// </summary>
+    private async Task<Dictionary<string, string>> FetchGovernanceDomainNamesAsync(
+        HttpClient httpClient,
+        string accessToken,
+        CancellationToken cancellationToken)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var url = $"{UnifiedCatalogBaseUrl}/datagovernance/catalog/domains" +
+                      $"?api-version={DataProductsApiVersion}&top={MaxDomainsPerPage}";
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+            var response = await httpClient.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "Governance domains API returned {StatusCode} — domain GUIDs may not be resolved to names",
+                    response.StatusCode);
+                return map;
+            }
+
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("value", out var arr) && arr.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in arr.EnumerateArray())
+                {
+                    var id = GetStringProperty(item, "id");
+                    var name = GetStringProperty(item, "name", "displayName");
+                    if (!string.IsNullOrEmpty(id) && !string.IsNullOrEmpty(name))
+                        map[id] = name;
+                }
+            }
+
+            _logger.LogInformation("Fetched {Count} governance domain name(s) for GUID resolution", map.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch governance domain names — domain GUIDs may appear as-is");
+        }
+        return map;
     }
 
     /// <summary>
@@ -357,7 +411,9 @@ public class PurviewScannerService : IPurviewScannerService
     ///   - Domain: "governanceDomain" or "domain", as object {"id","name"} or plain string
     ///   - Properties may be at top level or nested under a "properties" sub-object
     /// </summary>
-    private DataProductSyncResult MapDataProductToSyncResult(JsonElement dp)
+    private DataProductSyncResult MapDataProductToSyncResult(
+        JsonElement dp,
+        Dictionary<string, string> domainNames)
     {
         // Some Azure REST APIs nest resource fields under a "properties" sub-object.
         // If present, merge lookups from both top-level and properties.
@@ -410,6 +466,13 @@ public class PurviewScannerService : IPurviewScannerService
         {
             domain = ExtractDomainName(props.Value, "governanceDomain")
                   ?? ExtractDomainName(props.Value, "domain");
+        }
+
+        // If domain is still a GUID, resolve it to the human-readable name from the domain list
+        if (!string.IsNullOrEmpty(domain) && Guid.TryParse(domain, out _) &&
+            domainNames.TryGetValue(domain, out var resolvedDomainName))
+        {
+            domain = resolvedDomainName;
         }
 
         // Extract sensitivity label — may be object {"id":"...","name":"..."} or plain string
@@ -532,7 +595,9 @@ public class PurviewScannerService : IPurviewScannerService
             TermsOfUseUrl = StrOrObj("termsOfUse", "termsOfUseUrl"),
             DocumentationUrl = StrOrObj("documentation", "documentationUrl", "documentationLink"),
             DataAssets = ExtractDataAssets(dp, props),
-            LinkedPurviewAssetIds = ExtractLinkedAssetIds(dp)
+            LinkedPurviewAssetIds = ExtractLinkedAssetIds(dp),
+            TermsOfUseAssetIds = ExtractArrayAssetIds(dp, "termsOfUse"),
+            DocumentationAssetIds = ExtractArrayAssetIds(dp, "documentation")
         };
 
         // Detailed diagnostic logging when key fields are missing
@@ -618,6 +683,28 @@ public class PurviewScannerService : IPurviewScannerService
         ExtractFromArray("documentation");
 
         return ids.ToList();
+    }
+
+    /// <summary>
+    /// Extracts dataAssetId references from a single named array property in a data product JSON element.
+    /// Used to separately track which asset IDs came from "termsOfUse" vs "documentation".
+    /// </summary>
+    private static List<string> ExtractArrayAssetIds(JsonElement dp, string propertyName)
+    {
+        var ids = new List<string>();
+        if (dp.TryGetProperty(propertyName, out var arr) && arr.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in arr.EnumerateArray())
+            {
+                if (item.TryGetProperty("dataAssetId", out var idProp))
+                {
+                    var id = idProp.GetString();
+                    if (!string.IsNullOrEmpty(id))
+                        ids.Add(id);
+                }
+            }
+        }
+        return ids;
     }
 
     /// <summary>
