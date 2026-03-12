@@ -110,7 +110,7 @@ public class SyncOrchestrator : ISyncOrchestrator
                         Description = result.Description,
                         Owner = result.Owner,
                         OwnerEmail = result.OwnerEmail,
-                        SourceSystem = result.SourceSystem,
+                        SourceSystem = ResolveSourceSystem(result.SourceSystem, institution),
                         SchemaJson = result.SchemaJson,
                         ClassificationsJson = JsonSerializer.Serialize(result.Classifications),
                         GlossaryTermsJson = JsonSerializer.Serialize(result.GlossaryTerms),
@@ -145,7 +145,7 @@ public class SyncOrchestrator : ISyncOrchestrator
                     existing.Description = result.Description;
                     existing.Owner = result.Owner;
                     existing.OwnerEmail = result.OwnerEmail;
-                    existing.SourceSystem = result.SourceSystem;
+                    existing.SourceSystem = ResolveSourceSystem(result.SourceSystem, institution);
                     existing.SchemaJson = result.SchemaJson;
                     existing.ClassificationsJson = JsonSerializer.Serialize(result.Classifications);
                     existing.GlossaryTermsJson = JsonSerializer.Serialize(result.GlossaryTerms);
@@ -376,5 +376,24 @@ public class SyncOrchestrator : ISyncOrchestrator
                 "Linked {Count} data assets to products for {Name}",
                 linksCreated, institution.Name);
         }
+    }
+
+    /// <summary>
+    /// Resolves the source system value to a human-readable name.
+    /// If the raw value is a GUID that matches the institution's tenant ID,
+    /// the institution name is returned instead.
+    /// </summary>
+    private static string? ResolveSourceSystem(string? sourceSystem, Institution institution)
+    {
+        if (string.IsNullOrEmpty(sourceSystem))
+            return sourceSystem;
+
+        if (Guid.TryParse(sourceSystem, out _) &&
+            string.Equals(sourceSystem, institution.TenantId, StringComparison.OrdinalIgnoreCase))
+        {
+            return institution.Name;
+        }
+
+        return sourceSystem;
     }
 }

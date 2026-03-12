@@ -16,7 +16,6 @@ import Layout from './components/Layout';
 import DashboardPage from './pages/DashboardPage';
 import CatalogPage from './pages/CatalogPage';
 import DataProductDetailPage from './pages/DataProductDetailPage';
-import DataAssetsPage from './pages/DataAssetsPage';
 import MyRequestsPage from './pages/MyRequestsPage';
 import InstitutionsPage from './pages/InstitutionsPage';
 import SetupGuidePage from './pages/SetupGuidePage';
@@ -105,7 +104,6 @@ function AppRoutes() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/catalog" element={<CatalogPage />} />
         <Route path="/catalog/:id" element={<DataProductDetailPage />} />
-        <Route path="/data-assets" element={<DataAssetsPage />} />
         <Route path="/requests" element={<MyRequestsPage />} />
         <Route path="/admin/institutions" element={<InstitutionsPage />} />
         <Route path="/admin/logs" element={<LogsPage />} />

@@ -18,7 +18,6 @@ import {
   Building24Regular,
   BookQuestionMark24Regular,
   ClipboardTextLtr24Regular,
-  Database24Regular,
 } from '@fluentui/react-icons';
 
 const useStyles = makeStyles({
@@ -120,9 +119,6 @@ export default function Layout({ children }: LayoutProps) {
           </Tab>
           <Tab value="/catalog" icon={<Search24Regular />}>
             Catalog
-          </Tab>
-          <Tab value="/data-assets" icon={<Database24Regular />}>
-            Data Assets
           </Tab>
           <Tab value="/requests" icon={<DocumentBulletList24Regular />}>
             My Requests
