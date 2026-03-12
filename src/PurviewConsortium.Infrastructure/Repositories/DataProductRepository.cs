@@ -63,9 +63,15 @@ public class DataProductRepository : IDataProductRepository
     public async Task<int> GetTotalCountAsync(bool listedOnly = true) =>
         await _db.DataProducts.CountAsync(d => !listedOnly || d.IsListed);
 
-    public async Task<Dictionary<Guid, int>> GetCountByInstitutionAsync() =>
-        await _db.DataProducts
+    public async Task<Dictionary<Guid, int>> GetCountByInstitutionAsync()
+    {
+        var institutionIds = await _db.DataProducts
             .Where(d => d.IsListed)
-            .GroupBy(d => d.InstitutionId)
-            .ToDictionaryAsync(g => g.Key, g => g.Count());
+            .Select(d => d.InstitutionId)
+            .ToListAsync();
+
+        return institutionIds
+            .GroupBy(id => id)
+            .ToDictionary(group => group.Key, group => group.Count());
+    }
 }

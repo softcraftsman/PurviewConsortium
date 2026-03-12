@@ -1,0 +1,50 @@
+{
+    "value": [
+        {
+            "status": "Published",
+            "type": "Dataset",
+            "updateFrequency": "Weekly",
+            "id": "06d56da7-828e-4cc4-9245-ecce407df472",
+            "name": "Synthea Data",
+            "systemData": {
+                "createdAt": "2026-02-16T22:27:03.6174489Z",
+                "createdBy": "4bafb39b-fbd3-42c4-8e20-1c8e485f23c5",
+                "lastModifiedAt": "2026-03-12T14:26:51.8206603Z",
+                "lastModifiedBy": "4bafb39b-fbd3-42c4-8e20-1c8e485f23c5"
+            },
+            "domain": "268252c1-39a2-43fe-b22a-f59fcdb4b8d4",
+            "description": "<div>Synthea Data that I should be using for research.<br></div>",
+            "businessUse": "<div>Synthea Data use cases.<br></div>",
+            "contacts": {
+                "owner": [
+                    {
+                        "id": "4bafb39b-fbd3-42c4-8e20-1c8e485f23c5",
+                        "description": "Creator"
+                    }
+                ]
+            },
+            "termsOfUse": [
+                {
+                    "url": "https://aka.ms/randomlink",
+                    "name": "My Terms of use documentation",
+                    "dataAssetId": "d8dba01c-8f43-45e6-9f89-1332d2a4c5f6"
+                }
+            ],
+            "documentation": [
+                {
+                    "url": "https://aka.ms/randmonlink",
+                    "name": "Documentation Link",
+                    "dataAssetId": "d8dba01c-8f43-45e6-9f89-1332d2a4c5f6"
+                }
+            ],
+            "endorsed": true,
+            "audience": [
+                "DataScientist"
+            ],
+            "additionalProperties": {
+                "assetCount": 1
+            }
+        }
+    ],
+    "count": 7
+}

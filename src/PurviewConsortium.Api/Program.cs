@@ -48,7 +48,11 @@ try
     }
 
     // Infrastructure layer (DbContext, repositories, services)
-    var useRealDb = builder.Configuration.GetValue<bool>("UseRealDatabase", false);
+    // Check environment variable first (PURVIEW_CONSORTIUM_USE_REAL_DATABASE), then config file, default to false (in-memory)
+    var useRealDbEnv = Environment.GetEnvironmentVariable("PURVIEW_CONSORTIUM_USE_REAL_DATABASE");
+    var useRealDb = string.IsNullOrEmpty(useRealDbEnv) 
+        ? builder.Configuration.GetValue<bool>("UseRealDatabase", false)
+        : useRealDbEnv.Equals("true", StringComparison.OrdinalIgnoreCase);
     builder.Services.AddInfrastructure(builder.Configuration, useDevelopmentServices: isDev && !useRealDb);
 
     // Health checks (verifies SQL / in-memory DB connectivity)

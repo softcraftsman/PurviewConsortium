@@ -23,19 +23,14 @@ import {
   Field,
   MessageBar,
   MessageBarBody,
-  Table,
-  TableHeader,
-  TableHeaderCell,
-  TableRow,
-  TableBody,
-  TableCell,
+  Caption1,
 } from '@fluentui/react-components';
 import {
   ArrowLeft24Regular,
   LockOpen24Regular,
   Open24Regular,
 } from '@fluentui/react-icons';
-import { catalogApi, requestsApi } from '../api';
+import { catalogApi, requestsApi, type DataProductLink } from '../api';
 
 const useStyles = makeStyles({
   header: {
@@ -61,6 +56,64 @@ const useStyles = makeStyles({
   metaItem: {
     display: 'flex',
     flexDirection: 'column',
+  },
+  subSection: {
+    marginTop: '16px',
+  },
+  ownerGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+    gap: '12px',
+    marginTop: '12px',
+  },
+  detailCard: {
+    padding: '16px',
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusLarge,
+    backgroundColor: tokens.colorNeutralBackground1,
+  },
+  assetGrid: {
+    display: 'grid',
+    gap: '16px',
+    marginTop: '12px',
+  },
+  assetMeta: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: '12px',
+    marginTop: '12px',
+  },
+  linkGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+    gap: '16px',
+    marginTop: '12px',
+  },
+  linkGroup: {
+    padding: '16px',
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusLarge,
+    backgroundColor: tokens.colorNeutralBackground2,
+  },
+  linkList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    marginTop: '12px',
+  },
+  linkItem: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    paddingBottom: '10px',
+    borderBottom: `1px solid ${tokens.colorNeutralStroke3}`,
+  },
+  externalLink: {
+    color: tokens.colorBrandForegroundLink,
+    textDecorationLine: 'none',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
   },
 });
 
@@ -178,7 +231,7 @@ export default function DataProductDetailPage() {
           />
           <MetaField label="Contact" value={product.institutionContactEmail} />
           <MetaField
-            label="Last Updated in Purview"
+            label="System Data Last Modified"
             value={
               product.purviewLastModified
                 ? new Date(product.purviewLastModified).toLocaleDateString()
@@ -188,87 +241,84 @@ export default function DataProductDetailPage() {
         </div>
       </div>
 
-      {/* Use Cases */}
-      {product.useCases && (
+      {product.ownerContacts.length > 0 && (
         <div className={styles.section}>
           <Text as="h2" size={600} weight="semibold" block>
-            Use Cases
+            Owner Contacts
           </Text>
-          <Text block style={{ whiteSpace: 'pre-wrap' }}>
-            {product.useCases}
-          </Text>
-        </div>
-      )}
-
-      {/* Links */}
-      {(product.termsOfUseUrl || product.documentationUrl) && (
-        <div className={styles.section}>
-          <Text as="h2" size={600} weight="semibold" block>
-            Links
-          </Text>
-          <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-            {product.termsOfUseUrl && (
-              <Button
-                as="a"
-                href={product.termsOfUseUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                appearance="outline"
-                icon={<Open24Regular />}
-              >
-                Terms of Use
-              </Button>
-            )}
-            {product.documentationUrl && (
-              <Button
-                as="a"
-                href={product.documentationUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                appearance="outline"
-                icon={<Open24Regular />}
-              >
-                Documentation
-              </Button>
-            )}
+          <div className={styles.ownerGrid}>
+            {product.ownerContacts.map((contact, index) => (
+              <div key={`${contact.id ?? contact.emailAddress ?? contact.name ?? 'owner'}-${index}`} className={styles.detailCard}>
+                <Text weight="semibold" block>
+                  {contact.name || 'Name unavailable'}
+                </Text>
+                <Caption1>{contact.description || 'No role description'}</Caption1>
+                <Text style={{ marginTop: '8px' }}>
+                  {contact.emailAddress || 'Email unavailable'}
+                </Text>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Data Assets Table */}
+      {(product.businessUse || product.useCases) && (
+        <div className={styles.section}>
+          <Text as="h2" size={600} weight="semibold" block>
+            Business Use
+          </Text>
+          <Text block style={{ whiteSpace: 'pre-wrap' }}>
+            {product.businessUse || product.useCases}
+          </Text>
+        </div>
+      )}
+
+      {(product.termsOfUse.length > 0 || product.documentation.length > 0) && (
+        <div className={styles.section}>
+          <Text as="h2" size={600} weight="semibold" block>
+            Related Links
+          </Text>
+          <div className={styles.linkGrid}>
+            <LinkGroup title="Terms of Use" links={product.termsOfUse} emptyText="No terms of use links." />
+            <LinkGroup title="Documentation" links={product.documentation} emptyText="No documentation links." />
+          </div>
+        </div>
+      )}
+
       {product.dataAssets && product.dataAssets.length > 0 && (
         <div className={styles.section}>
           <Text as="h2" size={600} weight="semibold" block>
             Data Assets ({product.dataAssets.length})
           </Text>
-          <Table style={{ marginTop: '8px' }} size="small">
-            <TableHeader>
-              <TableRow>
-                <TableHeaderCell>Name</TableHeaderCell>
-                <TableHeaderCell>Asset Type</TableHeaderCell>
-                <TableHeaderCell>Description</TableHeaderCell>
-                <TableHeaderCell>Last Refreshed</TableHeaderCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {product.dataAssets.map((asset) => (
-                <TableRow key={asset.id}>
-                  <TableCell>
-                    <Text weight="semibold">{asset.name}</Text>
-                  </TableCell>
-                  <TableCell>
+          <div className={styles.assetGrid}>
+            {product.dataAssets.map((asset) => (
+              <Card key={asset.id}>
+                <CardHeader
+                  header={<Text weight="semibold">{asset.name}</Text>}
+                  description={<Text size={200}>{asset.description || 'No description available.'}</Text>}
+                  action={
                     <Badge appearance="outline" color="informative" size="small">
                       {formatAssetType(asset.assetType)}
                     </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Text size={300}>{asset.description || '—'}</Text>
-                  </TableCell>
-                  <TableCell>{formatDate(asset.lastRefreshedAt)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                  }
+                />
+                <div style={{ padding: '0 16px 16px' }}>
+                  <div className={styles.assetMeta}>
+                    <MetaField label="Last Refreshed" value={formatDate(asset.lastRefreshedAt)} />
+                    <MetaField label="Last Modified" value={formatDate(asset.purviewLastModifiedAt)} />
+                    <MetaField label="Institution" value={asset.institutionName} />
+                    <MetaField label="Asset ID" value={asset.purviewAssetId} />
+                  </div>
+                  <div className={styles.subSection}>
+                    <LinkGroup title="Terms of Use" links={asset.termsOfUse} emptyText="No linked terms of use." compact />
+                  </div>
+                  <div className={styles.subSection}>
+                    <LinkGroup title="Documentation" links={asset.documentation} emptyText="No linked documentation." compact />
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
 
@@ -389,6 +439,57 @@ function MetaField({ label, value }: { label: string; value?: string | null }) {
         {label}
       </Text>
       <Text>{value || '—'}</Text>
+    </div>
+  );
+}
+
+function LinkGroup({
+  title,
+  links,
+  emptyText,
+  compact = false,
+}: {
+  title: string;
+  links: DataProductLink[];
+  emptyText: string;
+  compact?: boolean;
+}) {
+  const styles = useStyles();
+
+  return (
+    <div className={compact ? undefined : styles.linkGroup}>
+      <Text weight="semibold" block>
+        {title}
+      </Text>
+      {links.length === 0 ? (
+        <Text size={300} style={{ marginTop: '8px', display: 'block' }}>
+          {emptyText}
+        </Text>
+      ) : (
+        <div className={styles.linkList}>
+          {links.map((link, index) => (
+            <div key={`${title}-${link.dataAssetId ?? 'unmapped'}-${link.url ?? link.name ?? index}`} className={styles.linkItem}>
+              <Text size={200} weight="semibold">
+                {link.dataAssetName}
+              </Text>
+              <Text>{link.name || 'Untitled link'}</Text>
+              {link.url ? (
+                <a
+                  className={styles.externalLink}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Open24Regular fontSize={16} />
+                  <span>{link.url}</span>
+                </a>
+              ) : (
+                <Text size={200}>URL unavailable</Text>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -58,18 +58,36 @@ export interface DataProductListItem {
 export interface DataProductDetail extends DataProductListItem {
   purviewQualifiedName: string;
   ownerEmail?: string;
+  ownerContacts: DataProductOwnerContact[];
   schemaJson?: string;
   institutionContactEmail: string;
   institutionTenantId: string;
   lastSyncedFromPurview?: string;
   createdDate: string;
   currentUserRequest?: { requestId: string; status: string; createdDate: string };
+  businessUse?: string;
   useCases?: string;
   dataQualityScore?: number;
   updateFrequency?: string;
   termsOfUseUrl?: string;
+  termsOfUse: DataProductLink[];
   documentationUrl?: string;
+  documentation: DataProductLink[];
   dataAssets: DataAssetListItem[];
+}
+
+export interface DataProductOwnerContact {
+  id?: string;
+  description?: string;
+  name?: string;
+  emailAddress?: string;
+}
+
+export interface DataProductLink {
+  dataAssetId?: string;
+  dataAssetName: string;
+  name?: string;
+  url?: string;
 }
 
 export interface DataAssetListItem {
@@ -86,6 +104,8 @@ export interface DataAssetListItem {
   purviewLastModifiedAt?: string;
   institutionId: string;
   institutionName: string;
+  termsOfUse: DataProductLink[];
+  documentation: DataProductLink[];
 }
 
 export interface CatalogSearchResponse {

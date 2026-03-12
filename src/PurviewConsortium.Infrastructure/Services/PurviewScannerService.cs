@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Azure.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using PurviewConsortium.Core.Entities;
 using PurviewConsortium.Core.Interfaces;
 
 namespace PurviewConsortium.Infrastructure.Services;
@@ -242,10 +243,10 @@ public class PurviewScannerService : IPurviewScannerService
         string tenantId,
         CancellationToken cancellationToken)
     {
-        // Collect unique owner GUIDs that look like valid GUIDs (not already a display name)
         var guidsToResolve = results
-            .Where(r => !string.IsNullOrEmpty(r.OwnerObjectId) && Guid.TryParse(r.OwnerObjectId, out _))
-            .Select(r => r.OwnerObjectId!)
+            .SelectMany(r => r.OwnerContacts.Select(c => c.Id).Append(r.OwnerObjectId))
+            .Where(id => !string.IsNullOrEmpty(id) && Guid.TryParse(id, out _))
+            .Select(id => id!)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -307,13 +308,42 @@ public class PurviewScannerService : IPurviewScannerService
         // Apply resolved names back to results
         foreach (var result in results)
         {
-            if (!string.IsNullOrEmpty(result.OwnerObjectId) &&
-                resolved.TryGetValue(result.OwnerObjectId, out var user))
+            foreach (var contact in result.OwnerContacts)
             {
-                if (!string.IsNullOrEmpty(user.DisplayName))
-                    result.Owner = user.DisplayName;
-                if (!string.IsNullOrEmpty(user.Mail))
-                    result.OwnerEmail = user.Mail;
+                if (!string.IsNullOrEmpty(contact.Id) &&
+                    resolved.TryGetValue(contact.Id, out var resolvedContact))
+                {
+                    if (!string.IsNullOrEmpty(resolvedContact.DisplayName))
+                        contact.Name = resolvedContact.DisplayName;
+                    if (!string.IsNullOrEmpty(resolvedContact.Mail))
+                        contact.EmailAddress = resolvedContact.Mail;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(result.OwnerObjectId) &&
+                resolved.TryGetValue(result.OwnerObjectId, out var ownerUser))
+            {
+                if (!string.IsNullOrEmpty(ownerUser.DisplayName))
+                    result.Owner = ownerUser.DisplayName;
+                if (!string.IsNullOrEmpty(ownerUser.Mail))
+                    result.OwnerEmail = ownerUser.Mail;
+            }
+
+            var primaryContact = result.OwnerContacts.FirstOrDefault(c =>
+                !string.IsNullOrEmpty(c.Name) || !string.IsNullOrEmpty(c.EmailAddress));
+
+            if (primaryContact != null)
+            {
+                if (!string.IsNullOrEmpty(primaryContact.Name))
+                    result.Owner = primaryContact.Name;
+                if (!string.IsNullOrEmpty(primaryContact.EmailAddress))
+                    result.OwnerEmail = primaryContact.EmailAddress;
+                if (string.IsNullOrEmpty(result.OwnerObjectId) &&
+                    !string.IsNullOrEmpty(primaryContact.Id) &&
+                    Guid.TryParse(primaryContact.Id, out _))
+                {
+                    result.OwnerObjectId = primaryContact.Id;
+                }
             }
         }
     }
@@ -421,10 +451,16 @@ public class PurviewScannerService : IPurviewScannerService
             ? propsObj
             : (JsonElement?)null;
 
+        var ownerContacts = ExtractOwnerContacts(dp, props);
+        var termsOfUseLinks = ExtractDocumentLinks(dp, props, "termsOfUse");
+        var documentationLinks = ExtractDocumentLinks(dp, props, "documentation");
+
         // Extract owner from owners array (primary) or contacts array (fallback)
         string? owner = null;
         string? ownerEmail = null;
-        string? ownerObjectId = null;
+        string? ownerObjectId = ownerContacts
+            .Select(c => c.Id)
+            .FirstOrDefault(id => !string.IsNullOrEmpty(id) && Guid.TryParse(id, out _));
         owner = ExtractOwnerFromArray(dp, "owners", out ownerEmail);
         if (string.IsNullOrEmpty(owner) && props.HasValue)
             owner = ExtractOwnerFromArray(props.Value, "owners", out ownerEmail);
@@ -454,6 +490,12 @@ public class PurviewScannerService : IPurviewScannerService
                 }
             }
         }
+
+        var primaryOwnerContact = ownerContacts.FirstOrDefault();
+        if (string.IsNullOrEmpty(owner) && primaryOwnerContact != null)
+            owner = primaryOwnerContact.Name ?? primaryOwnerContact.Description ?? primaryOwnerContact.EmailAddress;
+        if (string.IsNullOrEmpty(ownerEmail) && primaryOwnerContact != null)
+            ownerEmail = primaryOwnerContact.EmailAddress;
 
         // Note: "audience" (e.g. ["DataScientist"]) is the target audience, NOT the owner.
         // Do not use it as an Owner fallback.
@@ -592,12 +634,17 @@ public class PurviewScannerService : IPurviewScannerService
             Documentation = Str("documentation"),
             UseCases = StripHtml(Str("useCases", "useCase", "businessUse")),
             DataQualityScore = IntProp("dataQualityScore", "qualityScore"),
-            TermsOfUseUrl = StrOrObj("termsOfUse", "termsOfUseUrl"),
-            DocumentationUrl = StrOrObj("documentation", "documentationUrl", "documentationLink"),
+            TermsOfUseUrl = termsOfUseLinks.FirstOrDefault(l => !string.IsNullOrEmpty(l.Url))?.Url
+                ?? StrOrObj("termsOfUse", "termsOfUseUrl"),
+            TermsOfUseLinks = termsOfUseLinks,
+            DocumentationUrl = documentationLinks.FirstOrDefault(l => !string.IsNullOrEmpty(l.Url))?.Url
+                ?? StrOrObj("documentation", "documentationUrl", "documentationLink"),
+            DocumentationLinks = documentationLinks,
             DataAssets = ExtractDataAssets(dp, props),
-            LinkedPurviewAssetIds = ExtractLinkedAssetIds(dp),
-            TermsOfUseAssetIds = ExtractArrayAssetIds(dp, "termsOfUse"),
-            DocumentationAssetIds = ExtractArrayAssetIds(dp, "documentation")
+            LinkedPurviewAssetIds = ExtractLinkedAssetIds(dp, props),
+            TermsOfUseAssetIds = ExtractArrayAssetIds(dp, props, "termsOfUse"),
+            DocumentationAssetIds = ExtractArrayAssetIds(dp, props, "documentation"),
+            OwnerContacts = ownerContacts
         };
 
         // Detailed diagnostic logging when key fields are missing
@@ -659,13 +706,13 @@ public class PurviewScannerService : IPurviewScannerService
     /// Extracts dataAssetId references from termsOfUse and documentation arrays
     /// in a data product JSON element (from the list endpoint).
     /// </summary>
-    private static List<string> ExtractLinkedAssetIds(JsonElement dp)
+    private static List<string> ExtractLinkedAssetIds(JsonElement dp, JsonElement? props = null)
     {
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         void ExtractFromArray(string propertyName)
         {
-            if (dp.TryGetProperty(propertyName, out var arr) && arr.ValueKind == JsonValueKind.Array)
+            if (TryGetArrayProperty(dp, props, propertyName, out var arr))
             {
                 foreach (var item in arr.EnumerateArray())
                 {
@@ -689,10 +736,10 @@ public class PurviewScannerService : IPurviewScannerService
     /// Extracts dataAssetId references from a single named array property in a data product JSON element.
     /// Used to separately track which asset IDs came from "termsOfUse" vs "documentation".
     /// </summary>
-    private static List<string> ExtractArrayAssetIds(JsonElement dp, string propertyName)
+    private static List<string> ExtractArrayAssetIds(JsonElement dp, JsonElement? props, string propertyName)
     {
         var ids = new List<string>();
-        if (dp.TryGetProperty(propertyName, out var arr) && arr.ValueKind == JsonValueKind.Array)
+        if (TryGetArrayProperty(dp, props, propertyName, out var arr))
         {
             foreach (var item in arr.EnumerateArray())
             {
@@ -705,6 +752,175 @@ public class PurviewScannerService : IPurviewScannerService
             }
         }
         return ids;
+    }
+
+    private static List<DataProductOwnerContactInfo> ExtractOwnerContacts(JsonElement dp, JsonElement? props)
+    {
+        var contacts = new List<DataProductOwnerContactInfo>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void AddContact(JsonElement item)
+        {
+            var contact = MapOwnerContact(item);
+            if (contact == null)
+                return;
+
+            var key = string.Join("|",
+                contact.Id ?? string.Empty,
+                contact.EmailAddress ?? string.Empty,
+                contact.Name ?? string.Empty,
+                contact.Description ?? string.Empty);
+
+            if (seen.Add(key))
+                contacts.Add(contact);
+        }
+
+        void AddFromSource(JsonElement source)
+        {
+            if (source.TryGetProperty("contacts", out var contactsObject) && contactsObject.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var subKey in new[] { "owner", "owners" })
+                {
+                    if (contactsObject.TryGetProperty(subKey, out var ownerArray) && ownerArray.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in ownerArray.EnumerateArray())
+                            AddContact(item);
+                    }
+                }
+            }
+
+            foreach (var propertyName in new[] { "owners", "owner" })
+            {
+                if (!source.TryGetProperty(propertyName, out var ownerValue))
+                    continue;
+
+                if (ownerValue.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in ownerValue.EnumerateArray())
+                        AddContact(item);
+                }
+                else
+                {
+                    AddContact(ownerValue);
+                }
+            }
+        }
+
+        AddFromSource(dp);
+        if (props.HasValue)
+            AddFromSource(props.Value);
+
+        return contacts;
+    }
+
+    private static DataProductOwnerContactInfo? MapOwnerContact(JsonElement item)
+    {
+        if (item.ValueKind == JsonValueKind.String)
+        {
+            var value = item.GetString();
+            if (string.IsNullOrEmpty(value))
+                return null;
+
+            return new DataProductOwnerContactInfo
+            {
+                Name = value.Contains('@') ? null : value,
+                EmailAddress = value.Contains('@') ? value : null
+            };
+        }
+
+        if (item.ValueKind != JsonValueKind.Object)
+            return null;
+
+        var name = GetStringProperty(item, "displayName", "name", "contactName");
+        var email = GetStringProperty(item, "mail", "email", "userPrincipalName", "contactEmail");
+
+        if (string.IsNullOrEmpty(name) && item.TryGetProperty("info", out var infoObj) && infoObj.ValueKind == JsonValueKind.Object)
+        {
+            name = GetStringProperty(infoObj, "displayName", "name");
+            email ??= GetStringProperty(infoObj, "mail", "email", "userPrincipalName");
+        }
+
+        var contact = new DataProductOwnerContactInfo
+        {
+            Id = GetStringProperty(item, "id"),
+            Description = GetStringProperty(item, "description"),
+            Name = name,
+            EmailAddress = email
+        };
+
+        if (string.IsNullOrEmpty(contact.Id) &&
+            string.IsNullOrEmpty(contact.Description) &&
+            string.IsNullOrEmpty(contact.Name) &&
+            string.IsNullOrEmpty(contact.EmailAddress))
+        {
+            return null;
+        }
+
+        return contact;
+    }
+
+    private static List<DataProductLinkInfo> ExtractDocumentLinks(JsonElement dp, JsonElement? props, string propertyName)
+    {
+        var links = new List<DataProductLinkInfo>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void AddLink(DataProductLinkInfo? link)
+        {
+            if (link == null || (string.IsNullOrEmpty(link.Name) && string.IsNullOrEmpty(link.Url) && string.IsNullOrEmpty(link.DataAssetId)))
+                return;
+
+            var key = string.Join("|", link.DataAssetId ?? string.Empty, link.Name ?? string.Empty, link.Url ?? string.Empty);
+            if (seen.Add(key))
+                links.Add(link);
+        }
+
+        void AddFromValue(JsonElement value)
+        {
+            if (value.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in value.EnumerateArray())
+                    AddFromValue(item);
+                return;
+            }
+
+            if (value.ValueKind == JsonValueKind.String)
+            {
+                var url = value.GetString();
+                if (!string.IsNullOrEmpty(url))
+                    AddLink(new DataProductLinkInfo { Url = url });
+                return;
+            }
+
+            if (value.ValueKind != JsonValueKind.Object)
+                return;
+
+            AddLink(new DataProductLinkInfo
+            {
+                Name = GetStringProperty(value, "name", "displayName", "title"),
+                Url = GetStringProperty(value, "url", "href", "link"),
+                DataAssetId = GetStringProperty(value, "dataAssetId")
+            });
+        }
+
+        if (dp.TryGetProperty(propertyName, out var topLevelValue))
+            AddFromValue(topLevelValue);
+
+        if (props.HasValue && props.Value.TryGetProperty(propertyName, out var propsValue))
+            AddFromValue(propsValue);
+
+        return links;
+    }
+
+    private static bool TryGetArrayProperty(JsonElement dp, JsonElement? props, string propertyName, out JsonElement array)
+    {
+        if (dp.TryGetProperty(propertyName, out array) && array.ValueKind == JsonValueKind.Array)
+            return true;
+
+        if (props.HasValue && props.Value.TryGetProperty(propertyName, out array) && array.ValueKind == JsonValueKind.Array)
+            return true;
+
+        array = default;
+        return false;
     }
 
     /// <summary>

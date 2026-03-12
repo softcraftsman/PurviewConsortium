@@ -110,6 +110,27 @@ public class CatalogController : ControllerBase
         }
 
         var linkedAssets = await GetLinkedDataAssetsAsync(id);
+        var ownerContacts = BuildOwnerContacts(product);
+        var assetNameByPurviewId = linkedAssets.ToDictionary(a => a.PurviewAssetId, a => a.Name, StringComparer.OrdinalIgnoreCase);
+        var termsOfUse = BuildLinkDtos(product.GetTermsOfUseLinks(), assetNameByPurviewId, product.TermsOfUseUrl, "Terms of Use");
+        var documentation = BuildLinkDtos(product.GetDocumentationLinks(), assetNameByPurviewId, product.DocumentationUrl, "Documentation");
+        var dataAssets = linkedAssets.Select(asset => new DataAssetListItemDto(
+            asset.Id,
+            asset.PurviewAssetId,
+            asset.Name,
+            asset.Type,
+            asset.Description,
+            asset.AssetType,
+            asset.FullyQualifiedName,
+            asset.AccountName,
+            asset.LastRefreshedAt,
+            asset.PurviewCreatedAt,
+            asset.PurviewLastModifiedAt,
+            asset.InstitutionId,
+            asset.Institution.Name,
+            termsOfUse.Where(link => string.Equals(link.DataAssetId, asset.PurviewAssetId, StringComparison.OrdinalIgnoreCase)).ToList(),
+            documentation.Where(link => string.Equals(link.DataAssetId, asset.PurviewAssetId, StringComparison.OrdinalIgnoreCase)).ToList()
+        )).ToList();
 
         return Ok(new DataProductDetailDto(
             product.Id,
@@ -118,6 +139,7 @@ public class CatalogController : ControllerBase
             product.Description,
             product.Owner,
             product.OwnerEmail,
+            ownerContacts,
             product.SourceSystem,
             product.SchemaJson,
             product.GetClassifications(),
@@ -131,12 +153,15 @@ public class CatalogController : ControllerBase
             product.CreatedDate,
             currentRequest,
             product.AssetCount,
+            product.BusinessUse,
             product.UseCases,
             product.DataQualityScore,
             product.UpdateFrequency,
             product.TermsOfUseUrl,
+            termsOfUse,
             product.DocumentationUrl,
-            linkedAssets
+            documentation,
+            dataAssets
         ));
     }
 
@@ -216,7 +241,9 @@ public class CatalogController : ControllerBase
             a.PurviewCreatedAt,
             a.PurviewLastModifiedAt,
             a.InstitutionId,
-            a.Institution.Name
+            a.Institution.Name,
+            new List<DataProductLinkDto>(),
+            new List<DataProductLinkDto>()
         )).ToList();
 
         return Ok(new DataAssetListResponseDto(items, items.Count));
@@ -246,28 +273,70 @@ public class CatalogController : ControllerBase
     }
 
     /// <summary>Get linked data assets for a data product from the join table.</summary>
-    private async Task<List<DataAssetListItemDto>> GetLinkedDataAssetsAsync(Guid dataProductId)
+    private async Task<List<DataAsset>> GetLinkedDataAssetsAsync(Guid dataProductId)
     {
         return await _dbContext.DataProductDataAssets
             .Where(link => link.DataProductId == dataProductId)
             .Include(link => link.DataAsset)
                 .ThenInclude(a => a.Institution)
-            .Select(link => new DataAssetListItemDto(
-                link.DataAsset.Id,
-                link.DataAsset.PurviewAssetId,
-                link.DataAsset.Name,
-                link.DataAsset.Type,
-                link.DataAsset.Description,
-                link.DataAsset.AssetType,
-                link.DataAsset.FullyQualifiedName,
-                link.DataAsset.AccountName,
-                link.DataAsset.LastRefreshedAt,
-                link.DataAsset.PurviewCreatedAt,
-                link.DataAsset.PurviewLastModifiedAt,
-                link.DataAsset.InstitutionId,
-                link.DataAsset.Institution.Name
-            ))
+            .Select(link => link.DataAsset)
             .ToListAsync();
+    }
+
+    private static List<DataProductOwnerContactDto> BuildOwnerContacts(DataProduct product)
+    {
+        var contacts = product.GetOwnerContacts()
+            .Select(contact => new DataProductOwnerContactDto(
+                contact.Id,
+                contact.Description,
+                contact.Name,
+                contact.EmailAddress))
+            .ToList();
+
+        if (contacts.Count == 0 && (!string.IsNullOrWhiteSpace(product.Owner) || !string.IsNullOrWhiteSpace(product.OwnerEmail)))
+        {
+            contacts.Add(new DataProductOwnerContactDto(
+                Id: null,
+                Description: null,
+                Name: product.Owner,
+                EmailAddress: product.OwnerEmail));
+        }
+
+        return contacts;
+    }
+
+    private static List<DataProductLinkDto> BuildLinkDtos(
+        List<DataProductLinkInfo> links,
+        IReadOnlyDictionary<string, string> assetNameByPurviewId,
+        string? fallbackUrl,
+        string fallbackName)
+    {
+        var mapped = links
+            .Select(link => new DataProductLinkDto(
+                link.DataAssetId,
+                ResolveAssetName(link.DataAssetId, assetNameByPurviewId),
+                link.Name,
+                link.Url))
+            .ToList();
+
+        if (mapped.Count == 0 && !string.IsNullOrWhiteSpace(fallbackUrl))
+        {
+            mapped.Add(new DataProductLinkDto(
+                DataAssetId: null,
+                DataAssetName: "Unmapped asset",
+                Name: fallbackName,
+                Url: fallbackUrl));
+        }
+
+        return mapped;
+    }
+
+    private static string ResolveAssetName(string? dataAssetId, IReadOnlyDictionary<string, string> assetNameByPurviewId)
+    {
+        if (!string.IsNullOrWhiteSpace(dataAssetId) && assetNameByPurviewId.TryGetValue(dataAssetId, out var assetName))
+            return assetName;
+
+        return dataAssetId ?? "Unmapped asset";
     }
 
     private string? GetCurrentUserId() =>

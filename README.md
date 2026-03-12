@@ -119,17 +119,19 @@ func start
 
 ## Environment Variables
 
-### API (`appsettings.json`)
+### API
 
-| Setting | Description |
-|---------|-------------|
-| `AzureAd:ClientId` | App registration client ID |
-| `AzureAd:ClientSecret` | App registration secret |
-| `AzureAd:TenantId` | `common` for multi-tenant |
-| `ConnectionStrings:DefaultConnection` | SQL Server connection string |
-| `AzureAISearch:Endpoint` | Azure AI Search endpoint |
-| `AzureAISearch:ApiKey` | Azure AI Search admin key |
-| `AzureAISearch:IndexName` | Search index name (default: `consortium-catalog`) |
+| Variable | Source | Description | Default |
+|----------|--------|-------------|---------|
+| `PURVIEW_CONSORTIUM_USE_REAL_DATABASE` | Environment | Switch between in-memory (false) and SQL Server (true) databases. Takes precedence over config file. | `false` (in-memory) |
+| `UseRealDatabase` | `appsettings.json` | Alternative to env var; ignored if `PURVIEW_CONSORTIUM_USE_REAL_DATABASE` is set | `false` (in-memory) |
+| `AzureAd:ClientId` | `appsettings.json` | App registration client ID | — |
+| `AzureAd:ClientSecret` | `appsettings.json` | App registration secret | — |
+| `AzureAd:TenantId` | `appsettings.json` | `common` for multi-tenant | — |
+| `ConnectionStrings:DefaultConnection` | `appsettings.json` | SQL Server connection string | — |
+| `AzureAISearch:Endpoint` | `appsettings.json` | Azure AI Search endpoint | — |
+| `AzureAISearch:ApiKey` | `appsettings.json` | Azure AI Search admin key | — |
+| `AzureAISearch:IndexName` | `appsettings.json` | Search index name | `consortium-catalog` |
 
 ### Frontend (`.env`)
 

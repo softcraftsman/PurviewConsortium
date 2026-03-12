@@ -196,6 +196,43 @@ public class PurviewScannerServiceTests
     }
 
     [Fact]
+    public async Task ScanDataProducts_TermsOfUseAndDocumentationArrays_WithNamedLinks_AreCaptured()
+    {
+        const string termsUrl = "https://aka.ms/randomlink";
+        const string docsUrl = "https://aka.ms/randomdocs";
+
+        var handler = new MockPurviewHttpHandler();
+        handler.SetDomainsResponse(BuildDomainsJson(SalesDomainId, SalesDomainName));
+        handler.SetDataProductsResponse(BuildDataProductsJson(new
+        {
+            id = "prod-006b",
+            name = "Named Links Product",
+            termsOfUse = new[]
+            {
+                new { dataAssetId = TermsAssetId, name = "Terms Packet", url = termsUrl }
+            },
+            documentation = new[]
+            {
+                new { dataAssetId = DocsAssetId, name = "Runbook", url = docsUrl }
+            }
+        }));
+
+        var svc = CreateService(handler);
+
+        var results = await svc.ScanForShareableDataProductsAsync(PurviewAccount, TenantId);
+
+        Assert.Single(results);
+        Assert.Equal(termsUrl, results[0].TermsOfUseUrl);
+        Assert.Equal(docsUrl, results[0].DocumentationUrl);
+        Assert.Single(results[0].TermsOfUseLinks);
+        Assert.Equal("Terms Packet", results[0].TermsOfUseLinks[0].Name);
+        Assert.Equal(TermsAssetId, results[0].TermsOfUseLinks[0].DataAssetId);
+        Assert.Single(results[0].DocumentationLinks);
+        Assert.Equal("Runbook", results[0].DocumentationLinks[0].Name);
+        Assert.Equal(DocsAssetId, results[0].DocumentationLinks[0].DataAssetId);
+    }
+
+    [Fact]
     public async Task ScanDataProducts_TermsOfUseAsString_UrlCapturedInTermsOfUseUrl()
     {
         // Arrange: termsOfUse is a plain URL string (not an array)
@@ -268,6 +305,37 @@ public class PurviewScannerServiceTests
         Assert.Empty(results[0].DocumentationAssetIds);
         Assert.Null(results[0].TermsOfUseUrl);
         Assert.Null(results[0].DocumentationUrl);
+    }
+
+    [Fact]
+    public async Task ScanDataProducts_ContactsOwnerShape_OwnerContactsCaptured()
+    {
+        const string ownerId = "4bafb39b-fbd3-42c4-8e20-1c8e485f23c5";
+
+        var handler = new MockPurviewHttpHandler();
+        handler.SetDomainsResponse(BuildDomainsJson(SalesDomainId, SalesDomainName));
+        handler.SetDataProductsResponse(BuildDataProductsJson(new
+        {
+            id = "prod-010",
+            name = "Owner Contact Product",
+            contacts = new
+            {
+                owner = new[]
+                {
+                    new { id = ownerId, description = "Creator" }
+                }
+            }
+        }));
+
+        var svc = CreateService(handler);
+
+        var results = await svc.ScanForShareableDataProductsAsync(PurviewAccount, TenantId);
+
+        Assert.Single(results);
+        Assert.Equal(ownerId, results[0].OwnerObjectId);
+        Assert.Single(results[0].OwnerContacts);
+        Assert.Equal(ownerId, results[0].OwnerContacts[0].Id);
+        Assert.Equal("Creator", results[0].OwnerContacts[0].Description);
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────

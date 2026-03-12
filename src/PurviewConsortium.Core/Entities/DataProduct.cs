@@ -9,6 +9,7 @@ public class DataProduct
     public string? Description { get; set; }
     public string? Owner { get; set; }
     public string? OwnerEmail { get; set; }
+    public string? OwnerContactsJson { get; set; }
     public string? SourceSystem { get; set; }
     public string? SchemaJson { get; set; }
     public string? ClassificationsJson { get; set; }
@@ -32,7 +33,9 @@ public class DataProduct
     public string? UseCases { get; set; }
     public int? DataQualityScore { get; set; }
     public string? TermsOfUseUrl { get; set; }
+    public string? TermsOfUseJson { get; set; }
     public string? DocumentationUrl { get; set; }
+    public string? DocumentationJson { get; set; }
     public string? DataAssetsJson { get; set; }
 
     // Fabric integration — the lakehouse item that IS this data product's source asset
@@ -54,10 +57,40 @@ public class DataProduct
             ? new List<string>()
             : System.Text.Json.JsonSerializer.Deserialize<List<string>>(GlossaryTermsJson) ?? new List<string>();
 
+    public List<DataProductOwnerContactInfo> GetOwnerContacts() =>
+        string.IsNullOrEmpty(OwnerContactsJson)
+            ? new List<DataProductOwnerContactInfo>()
+            : System.Text.Json.JsonSerializer.Deserialize<List<DataProductOwnerContactInfo>>(OwnerContactsJson) ?? new List<DataProductOwnerContactInfo>();
+
+    public List<DataProductLinkInfo> GetTermsOfUseLinks() =>
+        string.IsNullOrEmpty(TermsOfUseJson)
+            ? new List<DataProductLinkInfo>()
+            : System.Text.Json.JsonSerializer.Deserialize<List<DataProductLinkInfo>>(TermsOfUseJson) ?? new List<DataProductLinkInfo>();
+
+    public List<DataProductLinkInfo> GetDocumentationLinks() =>
+        string.IsNullOrEmpty(DocumentationJson)
+            ? new List<DataProductLinkInfo>()
+            : System.Text.Json.JsonSerializer.Deserialize<List<DataProductLinkInfo>>(DocumentationJson) ?? new List<DataProductLinkInfo>();
+
     public List<DataAssetInfo> GetDataAssets() =>
         string.IsNullOrEmpty(DataAssetsJson)
             ? new List<DataAssetInfo>()
             : System.Text.Json.JsonSerializer.Deserialize<List<DataAssetInfo>>(DataAssetsJson) ?? new List<DataAssetInfo>();
+}
+
+public class DataProductOwnerContactInfo
+{
+    public string? Id { get; set; }
+    public string? Description { get; set; }
+    public string? Name { get; set; }
+    public string? EmailAddress { get; set; }
+}
+
+public class DataProductLinkInfo
+{
+    public string? Name { get; set; }
+    public string? Url { get; set; }
+    public string? DataAssetId { get; set; }
 }
 
 public class DataAssetInfo

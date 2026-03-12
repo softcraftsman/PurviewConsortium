@@ -1,5 +1,7 @@
 namespace PurviewConsortium.Core.Interfaces;
 
+using PurviewConsortium.Core.Entities;
+
 public class DataProductSyncResult
 {
     public string PurviewQualifiedName { get; set; } = string.Empty;
@@ -9,6 +11,7 @@ public class DataProductSyncResult
     public string? OwnerEmail { get; set; }
     /// <summary>The Azure AD Object ID of the owner (GUID from contacts.owner), used for Graph API resolution.</summary>
     public string? OwnerObjectId { get; set; }
+    public List<DataProductOwnerContactInfo> OwnerContacts { get; set; } = new();
     public string? SourceSystem { get; set; }
     public string? SchemaJson { get; set; }
     public List<string> Classifications { get; set; } = new();
@@ -28,7 +31,9 @@ public class DataProductSyncResult
     public string? UseCases { get; set; }
     public int? DataQualityScore { get; set; }
     public string? TermsOfUseUrl { get; set; }
+    public List<DataProductLinkInfo> TermsOfUseLinks { get; set; } = new();
     public string? DocumentationUrl { get; set; }
+    public List<DataProductLinkInfo> DocumentationLinks { get; set; } = new();
     public List<DataAssetSyncInfo> DataAssets { get; set; } = new();
 
     /// <summary>Purview data asset IDs referenced by this data product (from termsOfUse/documentation).</summary>

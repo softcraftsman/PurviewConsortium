@@ -110,6 +110,9 @@ public class SyncOrchestrator : ISyncOrchestrator
                         Description = result.Description,
                         Owner = result.Owner,
                         OwnerEmail = result.OwnerEmail,
+                        OwnerContactsJson = result.OwnerContacts.Count > 0
+                            ? JsonSerializer.Serialize(result.OwnerContacts)
+                            : null,
                         SourceSystem = ResolveSourceSystem(result.SourceSystem, institution),
                         SchemaJson = result.SchemaJson,
                         ClassificationsJson = JsonSerializer.Serialize(result.Classifications),
@@ -129,7 +132,13 @@ public class SyncOrchestrator : ISyncOrchestrator
                         UseCases = result.UseCases,
                         DataQualityScore = result.DataQualityScore,
                         TermsOfUseUrl = result.TermsOfUseUrl,
+                        TermsOfUseJson = result.TermsOfUseLinks.Count > 0
+                            ? JsonSerializer.Serialize(result.TermsOfUseLinks)
+                            : null,
                         DocumentationUrl = result.DocumentationUrl,
+                        DocumentationJson = result.DocumentationLinks.Count > 0
+                            ? JsonSerializer.Serialize(result.DocumentationLinks)
+                            : null,
                         DataAssetsJson = result.DataAssets.Count > 0
                             ? JsonSerializer.Serialize(result.DataAssets.Select(a => new { a.Name, a.Type, a.Description }))
                             : null
@@ -145,6 +154,9 @@ public class SyncOrchestrator : ISyncOrchestrator
                     existing.Description = result.Description;
                     existing.Owner = result.Owner;
                     existing.OwnerEmail = result.OwnerEmail;
+                    existing.OwnerContactsJson = result.OwnerContacts.Count > 0
+                        ? JsonSerializer.Serialize(result.OwnerContacts)
+                        : null;
                     existing.SourceSystem = ResolveSourceSystem(result.SourceSystem, institution);
                     existing.SchemaJson = result.SchemaJson;
                     existing.ClassificationsJson = JsonSerializer.Serialize(result.Classifications);
@@ -164,7 +176,13 @@ public class SyncOrchestrator : ISyncOrchestrator
                     existing.UseCases = result.UseCases;
                     existing.DataQualityScore = result.DataQualityScore;
                     existing.TermsOfUseUrl = result.TermsOfUseUrl;
+                    existing.TermsOfUseJson = result.TermsOfUseLinks.Count > 0
+                        ? JsonSerializer.Serialize(result.TermsOfUseLinks)
+                        : null;
                     existing.DocumentationUrl = result.DocumentationUrl;
+                    existing.DocumentationJson = result.DocumentationLinks.Count > 0
+                        ? JsonSerializer.Serialize(result.DocumentationLinks)
+                        : null;
                     existing.DataAssetsJson = result.DataAssets.Count > 0
                         ? JsonSerializer.Serialize(result.DataAssets.Select(a => new { a.Name, a.Type, a.Description }))
                         : null;

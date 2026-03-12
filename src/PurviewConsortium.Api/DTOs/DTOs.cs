@@ -58,6 +58,7 @@ public record DataProductDetailDto(
     string? Description,
     string? Owner,
     string? OwnerEmail,
+    List<DataProductOwnerContactDto> OwnerContacts,
     string? SourceSystem,
     string? SchemaJson,
     List<string> Classifications,
@@ -71,12 +72,27 @@ public record DataProductDetailDto(
     DateTime CreatedDate,
     AccessRequestStatusDto? CurrentUserRequest,
     int AssetCount,
+    string? BusinessUse,
     string? UseCases,
     int? DataQualityScore,
     string? UpdateFrequency,
     string? TermsOfUseUrl,
+    List<DataProductLinkDto> TermsOfUse,
     string? DocumentationUrl,
+    List<DataProductLinkDto> Documentation,
     List<DataAssetListItemDto> DataAssets);
+
+public record DataProductOwnerContactDto(
+    string? Id,
+    string? Description,
+    string? Name,
+    string? EmailAddress);
+
+public record DataProductLinkDto(
+    string? DataAssetId,
+    string DataAssetName,
+    string? Name,
+    string? Url);
 
 // --- Data Asset List DTOs ---
 
@@ -93,7 +109,9 @@ public record DataAssetListItemDto(
     DateTime? PurviewCreatedAt,
     DateTime? PurviewLastModifiedAt,
     Guid InstitutionId,
-    string InstitutionName);
+    string InstitutionName,
+    List<DataProductLinkDto> TermsOfUse,
+    List<DataProductLinkDto> Documentation);
 
 public record DataAssetListResponseDto(
     List<DataAssetListItemDto> Items,
