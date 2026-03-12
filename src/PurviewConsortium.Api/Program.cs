@@ -157,6 +157,22 @@ try
         else
         {
             Log.Warning("Using REAL database in Development mode — skipping migrations for safety");
+
+            // Keep local development resilient when the shared dev DB is behind the latest model.
+            db.Database.ExecuteSqlRaw(@"
+IF OBJECT_ID('dbo.DataProducts', 'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH('dbo.DataProducts', 'OwnerContactsJson') IS NULL
+        ALTER TABLE dbo.DataProducts ADD OwnerContactsJson nvarchar(max) NULL;
+
+    IF COL_LENGTH('dbo.DataProducts', 'TermsOfUseJson') IS NULL
+        ALTER TABLE dbo.DataProducts ADD TermsOfUseJson nvarchar(max) NULL;
+
+    IF COL_LENGTH('dbo.DataProducts', 'DocumentationJson') IS NULL
+        ALTER TABLE dbo.DataProducts ADD DocumentationJson nvarchar(max) NULL;
+END
+");
+            Log.Information("Ensured development real-database columns for data product detail JSON fields");
         }
     }
 

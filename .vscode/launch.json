@@ -1,15 +1,36 @@
 {
   "version": "0.2.0",
   "configurations": [
+
     {
       "name": "API (.NET)",
-      "type": "dotnet",
+      "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-api",
-      "projectPath": "${workspaceFolder}/src/PurviewConsortium.Api/PurviewConsortium.Api.csproj",
+      "program": "${workspaceFolder}/src/PurviewConsortium.Api/bin/Debug/net8.0/PurviewConsortium.Api.dll",
+      "cwd": "${workspaceFolder}/src/PurviewConsortium.Api",
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "ASPNETCORE_URLS": "http://localhost:5236"
+        "ASPNETCORE_URLS": "http://localhost:5236",
+        "PURVIEW_CONSORTIUM_USE_REAL_DATABASE": "false"
+      },
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
+        "uriFormat": "%s/swagger"
+      }
+    },
+    {
+      "name": "API (.NET) (Real DB)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-api",
+      "program": "${workspaceFolder}/src/PurviewConsortium.Api/bin/Debug/net8.0/PurviewConsortium.Api.dll",
+      "cwd": "${workspaceFolder}/src/PurviewConsortium.Api",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5236",
+        "PURVIEW_CONSORTIUM_USE_REAL_DATABASE": "true"
       },
       "serverReadyAction": {
         "action": "openExternally",
@@ -31,8 +52,13 @@
   ],
   "compounds": [
     {
-      "name": "Full Stack (API + Frontend)",
+      "name": "FS Local",
       "configurations": ["API (.NET)", "Frontend (Edge)"],
+      "stopAll": true
+  },
+      {
+      "name": "FS Real Database",
+      "configurations": ["API (.NET) (Real DB)", "Frontend (Edge)"],
       "stopAll": true
     }
   ]

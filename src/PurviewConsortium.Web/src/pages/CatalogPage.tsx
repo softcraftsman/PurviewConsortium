@@ -211,21 +211,11 @@ function ProductCard({
             </Text>
           )}
           <div className={styles.badges}>
-            {product.sensitivityLabel && (
-              <Badge appearance="outline" color="danger" size="small">
-                {product.sensitivityLabel}
-              </Badge>
-            )}
             {product.classifications.slice(0, 3).map((c) => (
               <Badge key={c} appearance="tint" size="small">
                 {c}
               </Badge>
             ))}
-            {product.sourceSystem && (
-              <Badge appearance="outline" color="informative" size="small">
-                {product.sourceSystem}
-              </Badge>
-            )}
           </div>
         </div>
       </CardPreview>

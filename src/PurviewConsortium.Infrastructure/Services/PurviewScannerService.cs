@@ -277,12 +277,22 @@ public class PurviewScannerService : IPurviewScannerService
 
                     var response = await httpClient.SendAsync(request, cancellationToken);
 
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        // Fallback for non-user principals (group/service principal/etc.)
+                        var directoryUrl = $"{GraphBaseUrl}/directoryObjects/{userId}";
+                        var directoryRequest = new HttpRequestMessage(HttpMethod.Get, directoryUrl);
+                        directoryRequest.Headers.Authorization =
+                            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", graphToken);
+                        response = await httpClient.SendAsync(directoryRequest, cancellationToken);
+                    }
+
                     if (response.IsSuccessStatusCode)
                     {
                         var json = await response.Content.ReadAsStringAsync(cancellationToken);
                         var userDoc = JsonDocument.Parse(json);
-                        var displayName = GetStringProperty(userDoc.RootElement, "displayName");
-                        var mail = GetStringProperty(userDoc.RootElement, "mail", "userPrincipalName");
+                        var displayName = GetStringProperty(userDoc.RootElement, "displayName", "name");
+                        var mail = GetStringProperty(userDoc.RootElement, "mail", "userPrincipalName", "email");
 
                         resolved[userId] = (displayName, mail);
                         _logger.LogInformation("Resolved user {UserId} -> {DisplayName} ({Mail})", userId, displayName, mail);
@@ -833,6 +843,21 @@ public class PurviewScannerService : IPurviewScannerService
 
         var name = GetStringProperty(item, "displayName", "name", "contactName");
         var email = GetStringProperty(item, "mail", "email", "userPrincipalName", "contactEmail");
+        var id = GetStringProperty(item, "id");
+        var description = GetStringProperty(item, "description");
+
+        // Purview contact entries often carry a GUID id + role description.
+        // In that case, person name/email should come from Entra lookup, not this payload.
+        if (!string.IsNullOrEmpty(id) && Guid.TryParse(id, out _))
+        {
+            if (!string.IsNullOrEmpty(name) && string.IsNullOrEmpty(description))
+            {
+                description = name;
+            }
+
+            name = null;
+            email = null;
+        }
 
         if (string.IsNullOrEmpty(name) && item.TryGetProperty("info", out var infoObj) && infoObj.ValueKind == JsonValueKind.Object)
         {
@@ -842,8 +867,8 @@ public class PurviewScannerService : IPurviewScannerService
 
         var contact = new DataProductOwnerContactInfo
         {
-            Id = GetStringProperty(item, "id"),
-            Description = GetStringProperty(item, "description"),
+            Id = id,
+            Description = description,
             Name = name,
             EmailAddress = email
         };

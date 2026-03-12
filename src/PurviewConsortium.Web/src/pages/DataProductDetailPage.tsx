@@ -219,17 +219,12 @@ export default function DataProductDetailPage() {
           Details
         </Text>
         <div className={styles.meta}>
-          <MetaField label="Data Product Owner" value={product.owner} />
-          <MetaField label="Owner Email" value={product.ownerEmail} />
-          <MetaField label="Source System" value={product.sourceSystem} />
-          <MetaField label="Sensitivity Label" value={product.sensitivityLabel} />
           <MetaField label="Data Assets" value={product.assetCount.toString()} />
           <MetaField label="Update Frequency" value={product.updateFrequency} />
           <MetaField
             label="Data Quality Score"
             value={product.dataQualityScore != null ? `${product.dataQualityScore}%` : undefined}
           />
-          <MetaField label="Contact" value={product.institutionContactEmail} />
           <MetaField
             label="System Data Last Modified"
             value={
@@ -244,16 +239,23 @@ export default function DataProductDetailPage() {
       {product.ownerContacts.length > 0 && (
         <div className={styles.section}>
           <Text as="h2" size={600} weight="semibold" block>
-            Owner Contacts
+            Data Product Owners
           </Text>
           <div className={styles.ownerGrid}>
             {product.ownerContacts.map((contact, index) => (
               <div key={`${contact.id ?? contact.emailAddress ?? contact.name ?? 'owner'}-${index}`} className={styles.detailCard}>
-                <Text weight="semibold" block>
-                  {contact.name || 'Name unavailable'}
+                <Text size={200} weight="semibold" block>
+                  Description
                 </Text>
-                <Caption1>{contact.description || 'No role description'}</Caption1>
-                <Text style={{ marginTop: '8px' }}>
+                <Caption1>{contact.description || 'Unavailable'}</Caption1>
+                <Text size={200} weight="semibold" block style={{ marginTop: '10px' }}>
+                  Name
+                </Text>
+                <Text>{contact.name || 'Unavailable'}</Text>
+                <Text size={200} weight="semibold" block style={{ marginTop: '10px' }}>
+                  Email
+                </Text>
+                <Text>
                   {contact.emailAddress || 'Email unavailable'}
                 </Text>
               </div>

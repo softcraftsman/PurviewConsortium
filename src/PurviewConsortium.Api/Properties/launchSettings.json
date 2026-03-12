@@ -19,6 +19,17 @@
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
     },
+    "http-realdb": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "launchUrl": "swagger",
+      "applicationUrl": "http://localhost:5236",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "PURVIEW_CONSORTIUM_USE_REAL_DATABASE": "true"
+      }
+    },
     "https": {
       "commandName": "Project",
       "dotnetRunMessages": true,

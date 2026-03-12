@@ -57,10 +57,8 @@ export interface DataProductListItem {
 
 export interface DataProductDetail extends DataProductListItem {
   purviewQualifiedName: string;
-  ownerEmail?: string;
   ownerContacts: DataProductOwnerContact[];
   schemaJson?: string;
-  institutionContactEmail: string;
   institutionTenantId: string;
   lastSyncedFromPurview?: string;
   createdDate: string;
