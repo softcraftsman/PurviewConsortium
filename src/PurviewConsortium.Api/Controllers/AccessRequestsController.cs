@@ -215,7 +215,18 @@ public class AccessRequestsController : ControllerBase
         if (userId == null) return Unauthorized();
 
         // For now, return user's own requests (role-based filtering to be expanded)
-        var requests = await _requestRepo.GetByUserAsync(userId);
+        List<AccessRequest> requests;
+        try
+        {
+            requests = await _requestRepo.GetByUserAsync(userId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to load access requests for user {UserId}. This usually indicates malformed enum/string data in AccessRequests.",
+                userId);
+            return Problem("Failed to load access requests. Please contact support with the request timestamp.");
+        }
 
         // Sync Purview workflow statuses for requests that have a workflow run and aren't terminal
         var userToken = HttpContext.Request.Headers["Authorization"]

@@ -74,7 +74,9 @@ public class ConsortiumDbContext : DbContext
             entity.Property(e => e.SourceInstitutionName).HasMaxLength(256);
 
             entity.Property(e => e.Status)
-                .HasConversion<string>()
+                .HasConversion(
+                    v => v.ToString(),
+                    v => ParseRequestStatus(v))
                 .HasMaxLength(32);
 
             entity.HasIndex(e => new { e.Status, e.RequestingInstitutionId });
@@ -269,5 +271,13 @@ public class ConsortiumDbContext : DbContext
                 ModifiedDate = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc)
             }
         );
+    }
+
+    private static RequestStatus ParseRequestStatus(string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value) && Enum.TryParse<RequestStatus>(value, true, out var parsed))
+            return parsed;
+
+        return RequestStatus.Submitted;
     }
 }
