@@ -131,21 +131,34 @@ public class AccessRequestsController : ControllerBase
                     created.PurviewWorkflowRunId = workflowResult.WorkflowRunId;
                     await _requestRepo.UpdateAsync(created);
                     _logger.LogInformation(
-                        "Purview workflow triggered for access request {RequestId}. WorkflowRunId: {WorkflowRunId}",
-                        created.Id, workflowResult.WorkflowRunId);
+                        "Purview workflow triggered. RequestId={RequestId}, WorkflowRunId={WorkflowRunId}, DataProduct={DataProduct}, Institution={Institution}, InstitutionTenantId={InstitutionTenantId}, PurviewAccount={PurviewAccount}, RequestingTenantId={RequestingTenantId}",
+                        created.Id,
+                        workflowResult.WorkflowRunId,
+                        product.Name,
+                        institution.Name,
+                        institution.TenantId,
+                        institution.PurviewAccountName,
+                        tenantId ?? "");
                 }
                 else
                 {
                     _logger.LogWarning(
-                        "Purview workflow submission failed for request {RequestId}: {Error}. " +
+                        "Purview workflow submission failed. RequestId={RequestId}, DataProduct={DataProduct}, Institution={Institution}, InstitutionTenantId={InstitutionTenantId}, PurviewAccount={PurviewAccount}, RequestingTenantId={RequestingTenantId}, Error={Error}. " +
                         "The local request was still created successfully.",
-                        created.Id, workflowResult.ErrorMessage);
+                        created.Id,
+                        product.Name,
+                        institution.Name,
+                        institution.TenantId,
+                        institution.PurviewAccountName,
+                        tenantId ?? "",
+                        workflowResult.ErrorMessage);
                 }
             }
             else
             {
                 _logger.LogInformation(
-                    "Institution '{Institution}' has no Purview account configured. Skipping workflow submission.",
+                    "Skipping Purview workflow submission. RequestId={RequestId}, Institution={Institution}, Reason=PurviewAccountMissing",
+                    created.Id,
                     institution.Name);
             }
         }
@@ -174,6 +187,8 @@ public class AccessRequestsController : ControllerBase
             EntityId = created.Id.ToString(),
             DetailsJson = System.Text.Json.JsonSerializer.Serialize(new
             {
+                RequestId = created.Id,
+                PurviewWorkflowRunId = created.PurviewWorkflowRunId,
                 DataProduct = product.Name,
                 Institution = product.Institution.Name,
                 Justification = request.BusinessJustification,

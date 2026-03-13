@@ -222,7 +222,9 @@ export default function LogsPage() {
                         content={`${log.entityType} ${log.entityId || ''}`}
                         relationship="label"
                       >
-                        <Text size={200}>{log.entityType}</Text>
+                        <Text size={200}>
+                          {log.entityType}{log.entityId ? ` #${log.entityId}` : ''}
+                        </Text>
                       </Tooltip>
                     ) : (
                       <Text size={200} style={{ opacity: 0.4 }}>—</Text>
