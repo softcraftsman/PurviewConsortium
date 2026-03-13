@@ -24,6 +24,12 @@ import {
   MessageBar,
   MessageBarBody,
   Caption1,
+  Table,
+  TableHeader,
+  TableHeaderCell,
+  TableRow,
+  TableBody,
+  TableCell,
 } from '@fluentui/react-components';
 import {
   ArrowLeft24Regular,
@@ -114,6 +120,12 @@ const useStyles = makeStyles({
     display: 'inline-flex',
     alignItems: 'center',
     gap: '6px',
+  },
+  iconLinks: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '8px',
+    alignItems: 'center',
   },
 });
 
@@ -292,35 +304,34 @@ export default function DataProductDetailPage() {
           <Text as="h2" size={600} weight="semibold" block>
             Data Assets ({product.dataAssets.length})
           </Text>
-          <div className={styles.assetGrid}>
-            {product.dataAssets.map((asset) => (
-              <Card key={asset.id}>
-                <CardHeader
-                  header={<Text weight="semibold">{asset.name}</Text>}
-                  description={<Text size={200}>{asset.description || 'No description available.'}</Text>}
-                  action={
-                    <Badge appearance="outline" color="informative" size="small">
-                      {formatAssetType(asset.assetType)}
-                    </Badge>
-                  }
-                />
-                <div style={{ padding: '0 16px 16px' }}>
-                  <div className={styles.assetMeta}>
-                    <MetaField label="Last Refreshed" value={formatDate(asset.lastRefreshedAt)} />
-                    <MetaField label="Last Modified" value={formatDate(asset.purviewLastModifiedAt)} />
-                    <MetaField label="Institution" value={asset.institutionName} />
-                    <MetaField label="Asset ID" value={asset.purviewAssetId} />
-                  </div>
-                  <div className={styles.subSection}>
-                    <LinkGroup title="Terms of Use" links={asset.termsOfUse} emptyText="No linked terms of use." compact />
-                  </div>
-                  <div className={styles.subSection}>
-                    <LinkGroup title="Documentation" links={asset.documentation} emptyText="No linked documentation." compact />
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+          <Table size="small" style={{ marginTop: '12px' }}>
+            <TableHeader>
+              <TableRow>
+                <TableHeaderCell>Asset Name</TableHeaderCell>
+                <TableHeaderCell>Asset Type</TableHeaderCell>
+                <TableHeaderCell>Last Modified</TableHeaderCell>
+                <TableHeaderCell>Description</TableHeaderCell>
+                <TableHeaderCell>Terms of Use</TableHeaderCell>
+                <TableHeaderCell>Documentation</TableHeaderCell>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {product.dataAssets.map((asset) => (
+                <TableRow key={asset.id}>
+                  <TableCell>{asset.name}</TableCell>
+                  <TableCell>{formatAssetType(asset.assetType)}</TableCell>
+                  <TableCell>{formatDate(asset.purviewLastModifiedAt)}</TableCell>
+                  <TableCell>{asset.description || '—'}</TableCell>
+                  <TableCell>
+                    <IconLinks links={asset.termsOfUse} />
+                  </TableCell>
+                  <TableCell>
+                    <IconLinks links={asset.documentation} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
 
@@ -492,6 +503,45 @@ function LinkGroup({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function IconLinks({ links }: { links: DataProductLink[] }) {
+  const styles = useStyles();
+
+  if (links.length === 0) {
+    return <Text size={200}>—</Text>;
+  }
+
+  return (
+    <div className={styles.iconLinks}>
+      {links.map((link, index) => {
+        const hoverText = link.name || link.url || 'Open link';
+        const key = `${link.dataAssetId ?? 'unmapped'}-${link.url ?? hoverText}-${index}`;
+
+        if (!link.url) {
+          return (
+            <span key={key} title={hoverText}>
+              <Open24Regular fontSize={16} />
+            </span>
+          );
+        }
+
+        return (
+          <a
+            key={key}
+            className={styles.externalLink}
+            href={link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={hoverText}
+            aria-label={hoverText}
+          >
+            <Open24Regular fontSize={16} />
+          </a>
+        );
+      })}
     </div>
   );
 }
