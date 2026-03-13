@@ -17,11 +17,17 @@ public class InstitutionRepository : IInstitutionRepository
     public async Task<Institution?> GetByTenantIdAsync(string tenantId) =>
         await _db.Institutions.FirstOrDefaultAsync(i => i.TenantId == tenantId);
 
-    public async Task<List<Institution>> GetAllAsync(bool activeOnly = true) =>
-        await _db.Institutions
-            .Where(i => !activeOnly || i.IsActive)
+    public async Task<List<Institution>> GetAllAsync(bool activeOnly = true)
+    {
+        var query = _db.Institutions.AsQueryable();
+
+        if (activeOnly)
+            query = query.Where(i => i.IsActive);
+
+        return await query
             .OrderBy(i => i.Name)
             .ToListAsync();
+    }
 
     public async Task<Institution> CreateAsync(Institution institution)
     {

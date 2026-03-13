@@ -166,15 +166,60 @@ public class CatalogController : ControllerBase
     public async Task<ActionResult<CatalogStatsDto>> GetStats()
     {
         var userId = GetCurrentUserId();
-        var totalProducts = await _dataProductRepo.GetTotalCountAsync();
-        var institutions = await _institutionRepo.GetAllAsync();
-        var countsByInstitution = await _dataProductRepo.GetCountByInstitutionAsync();
+        int totalProducts;
+        List<Institution> institutions;
+        Dictionary<Guid, int> countsByInstitution;
+
+        try
+        {
+            totalProducts = await _dataProductRepo.GetTotalCountAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Catalog stats failed while loading total product count.");
+            totalProducts = 0;
+        }
+
+        try
+        {
+            institutions = await _institutionRepo.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Catalog stats failed while loading institutions.");
+            institutions = new List<Institution>();
+        }
+
+        try
+        {
+            countsByInstitution = await _dataProductRepo.GetCountByInstitutionAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Catalog stats failed while loading product counts by institution.");
+            countsByInstitution = new Dictionary<Guid, int>();
+        }
 
         int pendingRequests = 0, activeShares = 0;
         if (userId != null)
         {
-            pendingRequests = await _accessRequestRepo.GetPendingCountByUserAsync(userId);
-            activeShares = await _accessRequestRepo.GetActiveCountByUserAsync(userId);
+            try
+            {
+                pendingRequests = await _accessRequestRepo.GetPendingCountByUserAsync(userId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Catalog stats failed while loading pending request count for user {UserId}.", userId);
+            }
+
+            try
+            {
+                activeShares = await _accessRequestRepo.GetActiveCountByUserAsync(userId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Catalog stats failed while loading active share count for user {UserId}.", userId);
+            }
         }
 
         var institutionLookup = institutions.ToDictionary(i => i.Id, i => i.Name);
