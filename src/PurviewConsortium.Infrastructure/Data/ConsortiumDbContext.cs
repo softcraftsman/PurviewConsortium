@@ -275,9 +275,21 @@ public class ConsortiumDbContext : DbContext
 
     private static RequestStatus ParseRequestStatus(string? value)
     {
-        if (!string.IsNullOrWhiteSpace(value) && Enum.TryParse<RequestStatus>(value, true, out var parsed))
-            return parsed;
+        if (string.IsNullOrWhiteSpace(value))
+            return RequestStatus.Submitted;
 
-        return RequestStatus.Submitted;
+        return value.Trim() switch
+        {
+            nameof(RequestStatus.Submitted) => RequestStatus.Submitted,
+            nameof(RequestStatus.UnderReview) => RequestStatus.UnderReview,
+            nameof(RequestStatus.Approved) => RequestStatus.Approved,
+            nameof(RequestStatus.Denied) => RequestStatus.Denied,
+            nameof(RequestStatus.Fulfilled) => RequestStatus.Fulfilled,
+            nameof(RequestStatus.Active) => RequestStatus.Active,
+            nameof(RequestStatus.Revoked) => RequestStatus.Revoked,
+            nameof(RequestStatus.Expired) => RequestStatus.Expired,
+            nameof(RequestStatus.Cancelled) => RequestStatus.Cancelled,
+            _ => RequestStatus.Submitted,
+        };
     }
 }
