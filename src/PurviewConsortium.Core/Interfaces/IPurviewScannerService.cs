@@ -66,6 +66,7 @@ public class DataAssetSyncResult
     public string? FullyQualifiedName { get; set; }
     public string? AccountName { get; set; }
     public string? WorkspaceName { get; set; }
+    public string? SourceWorkspaceId { get; set; }
     public string? ProvisioningState { get; set; }
     public DateTime? LastRefreshedAt { get; set; }
     public DateTime? PurviewCreatedAt { get; set; }

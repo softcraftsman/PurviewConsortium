@@ -31,7 +31,7 @@ Build a proof-of-concept web application that serves as a **centralized, searcha
 | ID | Requirement | Priority |
 |----|------------|----------|
 | FR-01 | The system shall allow consortium administrators to register new member institutions. | Must |
-| FR-02 | Each institution registration shall capture: institution name, Purview tenant ID, Purview account name, Fabric workspace ID, and primary contact. (No per-institution credentials needed — the consortium's multi-tenant app is used after the institution grants admin consent.) | Must |
+| FR-02 | Each institution registration shall capture: institution name, Purview tenant ID, Purview account name, and primary contact. Source Fabric workspace information should come from linked Data Asset metadata rather than the institution record. | Must |
 | FR-03 | The system shall validate connectivity to each institution's Purview instance upon registration. | Must |
 | FR-04 | The system shall support enabling/disabling an institution without deleting its configuration. | Should |
 
@@ -165,7 +165,7 @@ Build a proof-of-concept web application that serves as a **centralized, searcha
 - Name
 - TenantId (Azure AD tenant ID)
 - PurviewAccountName
-- FabricWorkspaceId
+- SourceWorkspaceId (captured per linked data asset when known)
 - PrimaryContactEmail
 - IsActive (bool)
 - AdminConsentGranted (bool — whether the institution has granted admin consent to the consortium app)
@@ -442,7 +442,7 @@ Include a solution file, docker-compose for local development, and a README.
 ```
 Create Entity Framework Core 8 models and DbContext for the Purview Consortium platform with these entities:
 
-1. Institution: Id (Guid), Name, TenantId, PurviewAccountName, FabricWorkspaceId, PrimaryContactEmail, IsActive, AdminConsentGranted (bool), CreatedDate, ModifiedDate
+1. Institution: Id (Guid), Name, TenantId, PurviewAccountName, PrimaryContactEmail, IsActive, AdminConsentGranted (bool), CreatedDate, ModifiedDate
 
 2. DataProduct: Id (Guid), PurviewQualifiedName, InstitutionId (FK), Name, Description, Owner, OwnerEmail, SourceSystem, SchemaJson (JSON column), Classifications (JSON array), GlossaryTerms (JSON array), SensitivityLabel, IsListed, LastSyncedFromPurview, PurviewLastModified, CreatedDate, ModifiedDate
 

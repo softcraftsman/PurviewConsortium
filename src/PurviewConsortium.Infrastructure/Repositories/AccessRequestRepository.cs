@@ -14,7 +14,11 @@ public class AccessRequestRepository : IAccessRequestRepository
 
     public async Task<AccessRequest?> GetByIdAsync(Guid id) =>
         await _db.AccessRequests
-            .Include(r => r.DataProduct).ThenInclude(d => d.Institution)
+            .Include(r => r.DataProduct)
+                .ThenInclude(d => d.Institution)
+            .Include(r => r.DataProduct)
+                .ThenInclude(d => d.DataProductDataAssets)
+                .ThenInclude(link => link.DataAsset)
             .Include(r => r.RequestingInstitution)
             .FirstOrDefaultAsync(r => r.Id == id);
 

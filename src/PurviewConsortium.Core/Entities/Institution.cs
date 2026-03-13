@@ -6,7 +6,6 @@ public class Institution
     public string Name { get; set; } = string.Empty;
     public string TenantId { get; set; } = string.Empty;
     public string PurviewAccountName { get; set; } = string.Empty;
-    public string? FabricWorkspaceId { get; set; }
     /// <summary>
     /// Comma-separated list of Purview governance domain IDs to sync.
     /// Only Data Products in these domains will be imported.
@@ -20,8 +19,7 @@ public class Institution
     /// When true (and the global Fabric:AutoFulfillOnApproval setting is also true),
     /// the system will attempt to automatically create Fabric shortcuts or external data
     /// shares as the Application Identity upon request approval.
-    /// Requires FabricWorkspaceId on this institution and SourceLakehouseItemId on the
-    /// Data Product to be configured.
+    /// Requires the source Data Product's Fabric workspace and lakehouse item IDs to be configured.
     /// </summary>
     public bool AutoFulfillEnabled { get; set; } = false;
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;

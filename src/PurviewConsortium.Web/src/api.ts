@@ -148,7 +148,6 @@ export interface Institution {
   name: string;
   tenantId: string;
   purviewAccountName: string;
-  fabricWorkspaceId?: string;
   primaryContactEmail: string;
   consortiumDomainIds?: string;
   isActive: boolean;

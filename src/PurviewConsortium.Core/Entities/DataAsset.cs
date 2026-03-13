@@ -33,6 +33,9 @@ public class DataAsset
     /// <summary>Fabric workspace name if applicable.</summary>
     public string? WorkspaceName { get; set; }
 
+    /// <summary>Fabric workspace ID if provided by Purview source metadata.</summary>
+    public string? SourceWorkspaceId { get; set; }
+
     /// <summary>Provisioning state: Succeeded, SoftDeleted, etc.</summary>
     public string? ProvisioningState { get; set; }
 

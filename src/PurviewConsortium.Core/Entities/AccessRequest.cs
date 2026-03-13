@@ -34,7 +34,7 @@ public class AccessRequest
     /// <summary>Whether this is a same-tenant (Internal) or cross-tenant (External) share.</summary>
     public ShareType ShareType { get; set; } = ShareType.External;
 
-    /// <summary>Source institution's Fabric workspace ID (from Institution.FabricWorkspaceId at request time).</summary>
+    /// <summary>Source linked data asset's Fabric workspace ID at request time.</summary>
     public string? SourceFabricWorkspaceId { get; set; }
 
     /// <summary>Source data product's lakehouse item ID (from DataProduct.SourceLakehouseItemId at request time).</summary>

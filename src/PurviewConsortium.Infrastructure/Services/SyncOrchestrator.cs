@@ -221,6 +221,7 @@ public class SyncOrchestrator : ISyncOrchestrator
                             FullyQualifiedName = assetResult.FullyQualifiedName,
                             AccountName = assetResult.AccountName,
                             WorkspaceName = assetResult.WorkspaceName,
+                            SourceWorkspaceId = assetResult.SourceWorkspaceId,
                             ProvisioningState = assetResult.ProvisioningState,
                             LastRefreshedAt = assetResult.LastRefreshedAt,
                             PurviewCreatedAt = assetResult.PurviewCreatedAt,
@@ -239,6 +240,7 @@ public class SyncOrchestrator : ISyncOrchestrator
                         existingAsset.FullyQualifiedName = assetResult.FullyQualifiedName;
                         existingAsset.AccountName = assetResult.AccountName;
                         existingAsset.WorkspaceName = assetResult.WorkspaceName;
+                        existingAsset.SourceWorkspaceId = assetResult.SourceWorkspaceId;
                         existingAsset.ProvisioningState = assetResult.ProvisioningState;
                         existingAsset.LastRefreshedAt = assetResult.LastRefreshedAt;
                         existingAsset.PurviewCreatedAt = assetResult.PurviewCreatedAt;

@@ -9,7 +9,6 @@ public record InstitutionDto(
     string Name,
     string TenantId,
     string PurviewAccountName,
-    string? FabricWorkspaceId,
     string? ConsortiumDomainIds,
     string PrimaryContactEmail,
     bool IsActive,
@@ -22,14 +21,12 @@ public record CreateInstitutionDto(
     string Name,
     string TenantId,
     string PurviewAccountName,
-    string? FabricWorkspaceId,
     string? ConsortiumDomainIds,
     string PrimaryContactEmail);
 
 public record UpdateInstitutionDto(
     string Name,
     string PurviewAccountName,
-    string? FabricWorkspaceId,
     string? ConsortiumDomainIds,
     string PrimaryContactEmail,
     bool IsActive,

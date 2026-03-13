@@ -43,6 +43,15 @@ public class AccessRequestsController : ControllerBase
         _logger = logger;
     }
 
+    private string? ResolveSourceWorkspaceId(DataProduct product)
+    {
+        var sourceAssetWorkspaceId = product.DataProductDataAssets
+            .Select(link => link.DataAsset?.SourceWorkspaceId)
+            .FirstOrDefault(id => !string.IsNullOrWhiteSpace(id));
+
+        return sourceAssetWorkspaceId ?? _configuration["Fabric:SourceWorkspaceOverride"];
+    }
+
     /// <summary>Submit a new access request.</summary>
     [HttpPost]
     public async Task<ActionResult<AccessRequestDto>> CreateRequest([FromBody] CreateAccessRequestDto dto)
@@ -82,7 +91,7 @@ public class AccessRequestsController : ControllerBase
             Status = RequestStatus.Submitted,
             StatusChangedDate = DateTime.UtcNow,
             // Denormalize source details at creation time for self-contained fulfillment view
-            SourceFabricWorkspaceId = product.Institution.FabricWorkspaceId,
+            SourceFabricWorkspaceId = ResolveSourceWorkspaceId(product),
             SourceLakehouseItemId = product.SourceLakehouseItemId,
             SourceTenantId = product.Institution.TenantId,
             SourceInstitutionName = product.Institution.Name,
@@ -240,14 +249,15 @@ public class AccessRequestsController : ControllerBase
 
         var sourceName     = request.SourceInstitutionName ?? sourceInstitution.Name;
         var sourceTenant   = request.SourceTenantId        ?? sourceInstitution.TenantId;
-        var sourceWorkspace = request.SourceFabricWorkspaceId ?? sourceInstitution.FabricWorkspaceId;
+        var sourceWorkspace = request.SourceFabricWorkspaceId
+            ?? ResolveSourceWorkspaceId(request.DataProduct);
         var sourceLakehouse = request.SourceLakehouseItemId ?? request.DataProduct.SourceLakehouseItemId;
         var recipientTenant = request.RequestingTenantId ?? requestingInstitution?.TenantId;
         var shareType = request.ShareType.ToString();
 
         // Validate which required fields are missing
         var missingFields = new List<string>();
-        if (string.IsNullOrEmpty(sourceWorkspace)) missingFields.Add("Source institution FabricWorkspaceId");
+        if (string.IsNullOrEmpty(sourceWorkspace)) missingFields.Add("Source Data Asset Fabric workspace ID");
         if (string.IsNullOrEmpty(sourceLakehouse))  missingFields.Add("Data Product SourceLakehouseItemId");
         if (string.IsNullOrEmpty(request.TargetFabricWorkspaceId)) missingFields.Add("Target Fabric Workspace ID");
         if (string.IsNullOrEmpty(request.TargetLakehouseItemId))   missingFields.Add("Target Lakehouse Item ID");
@@ -262,7 +272,7 @@ public class AccessRequestsController : ControllerBase
             steps = new List<string>
             {
                 "1. Open the Fabric portal (https://app.fabric.microsoft.com)",
-                $"2. Navigate to source workspace: {sourceWorkspace ?? "(configure FabricWorkspaceId on institution)"}",
+                $"2. Navigate to source workspace: {sourceWorkspace ?? "(configure a linked Data Asset workspace ID or Fabric:SourceWorkspaceOverride)"}",
                 $"3. Open source lakehouse item: {sourceLakehouse ?? "(configure SourceLakehouseItemId on data product)"}",
                 $"4. Grant workspace Viewer or Contributor role to the user: {request.RequestingUserEmail}",
                 "   (Both workspaces are in the same tenant — no External Data Share is required)",
@@ -277,7 +287,7 @@ public class AccessRequestsController : ControllerBase
             steps = new List<string>
             {
                 "1. Open the Fabric portal (https://app.fabric.microsoft.com)",
-                $"2. Navigate to source workspace: {sourceWorkspace ?? "(configure FabricWorkspaceId on institution)"}",
+                $"2. Navigate to source workspace: {sourceWorkspace ?? "(configure a linked Data Asset workspace ID or Fabric:SourceWorkspaceOverride)"}",
                 $"3. Open source lakehouse item: {sourceLakehouse ?? "(configure SourceLakehouseItemId on data product)"}",
                 "4. Click 'Share' → 'External data share'",
                 $"5. Recipient tenant ID: {recipientTenant ?? "(unknown — requesting tenant ID not captured)"}",
@@ -592,9 +602,12 @@ public class AccessRequestsController : ControllerBase
             }
 
             // Validate all required fields are present for automated fulfillment
-            if (string.IsNullOrEmpty(institution.FabricWorkspaceId))
+            var sourceWorkspaceId = req.SourceFabricWorkspaceId
+                ?? (req.DataProduct == null ? null : ResolveSourceWorkspaceId(req.DataProduct));
+
+            if (string.IsNullOrEmpty(sourceWorkspaceId))
             {
-                var msg = "Source institution FabricWorkspaceId is missing";
+                var msg = "Source Data Asset Fabric workspace ID is missing";
                 _logger.LogWarning("Cannot auto-fulfill request {RequestId}: {Reason}", req.Id, msg);
                 return (false, msg);
             }
@@ -628,11 +641,11 @@ public class AccessRequestsController : ControllerBase
                 _logger.LogInformation(
                     "Auto-fulfillment (Internal) for request {RequestId}: sourceWorkspace={Workspace}, " +
                     "sourceLakehouse={ItemId}, tenant={Tenant}, targetWorkspace={TargetWs}, targetLakehouse={TargetLh}",
-                    req.Id, institution.FabricWorkspaceId, sourceItemId, institution.TenantId,
+                    req.Id, sourceWorkspaceId, sourceItemId, institution.TenantId,
                     req.TargetFabricWorkspaceId, req.TargetLakehouseItemId);
 
                 result = await _fabricShortcutService.CreateInternalShortcutAsync(
-                    sourceWorkspaceId: institution.FabricWorkspaceId,
+                    sourceWorkspaceId: sourceWorkspaceId,
                     sourceItemId: sourceItemId,
                     tenantId: institution.TenantId,
                     targetWorkspaceId: req.TargetFabricWorkspaceId,
@@ -656,11 +669,11 @@ public class AccessRequestsController : ControllerBase
                     "Auto-fulfillment (External) for request {RequestId}: sourceWorkspace={Workspace}, " +
                     "sourceLakehouse={ItemId}, recipientTenant={Tenant}, targetWorkspace={TargetWs}, " +
                     "targetLakehouse={TargetLh}",
-                    req.Id, institution.FabricWorkspaceId, sourceItemId, recipientTenantId,
+                    req.Id, sourceWorkspaceId, sourceItemId, recipientTenantId,
                     req.TargetFabricWorkspaceId, req.TargetLakehouseItemId);
 
                 result = await _fabricShortcutService.CreateCrossTenantShortcutAsync(
-                    sourceWorkspaceId: institution.FabricWorkspaceId,
+                    sourceWorkspaceId: sourceWorkspaceId,
                     sourceItemId: sourceItemId,
                     sourceTenantId: institution.TenantId,
                     recipientTenantId: recipientTenantId,

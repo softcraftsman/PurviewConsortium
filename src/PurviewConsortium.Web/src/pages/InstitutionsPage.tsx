@@ -39,7 +39,6 @@ const emptyForm = {
   name: '',
   tenantId: '',
   purviewAccountName: '',
-  fabricWorkspaceId: '',
   primaryContactEmail: '',
 };
 
@@ -54,7 +53,6 @@ export default function InstitutionsPage() {
   const [editForm, setEditForm] = useState({
     name: '',
     purviewAccountName: '',
-    fabricWorkspaceId: '',
     primaryContactEmail: '',
     consortiumDomainIds: '',
     isActive: true,
@@ -119,7 +117,7 @@ export default function InstitutionsPage() {
       adminApi.updateInstitution(inst.id, {
         name: inst.name,
         purviewAccountName: inst.purviewAccountName,
-        fabricWorkspaceId: inst.fabricWorkspaceId,
+        consortiumDomainIds: inst.consortiumDomainIds,
         primaryContactEmail: inst.primaryContactEmail,
         isActive: inst.isActive,
         adminConsentGranted: !inst.adminConsentGranted,
@@ -135,7 +133,6 @@ export default function InstitutionsPage() {
       adminApi.updateInstitution(editTarget!.id, {
         name: editForm.name,
         purviewAccountName: editForm.purviewAccountName,
-        fabricWorkspaceId: editForm.fabricWorkspaceId,
         primaryContactEmail: editForm.primaryContactEmail,
         consortiumDomainIds: editForm.consortiumDomainIds || undefined,
         isActive: editForm.isActive,
@@ -152,7 +149,6 @@ export default function InstitutionsPage() {
     setEditForm({
       name: inst.name,
       purviewAccountName: inst.purviewAccountName ?? '',
-      fabricWorkspaceId: inst.fabricWorkspaceId ?? '',
       primaryContactEmail: inst.primaryContactEmail,
       consortiumDomainIds: inst.consortiumDomainIds ?? '',
       isActive: inst.isActive,
@@ -220,13 +216,6 @@ export default function InstitutionsPage() {
                         value={form.purviewAccountName}
                         onChange={handleFieldChange('purviewAccountName')}
                         placeholder="e.g. contoso-purview"
-                      />
-                    </Field>
-                    <Field label="Fabric Workspace ID">
-                      <Input
-                        value={form.fabricWorkspaceId}
-                        onChange={handleFieldChange('fabricWorkspaceId')}
-                        placeholder="Optional — used for OneLake shortcut guidance"
                       />
                     </Field>
                     <Field label="Primary Contact Email" required>
@@ -348,13 +337,6 @@ export default function InstitutionsPage() {
                     placeholder="e.g. contoso-purview"
                   />
                 </Field>
-                <Field label="Fabric Workspace ID">
-                  <Input
-                    value={editForm.fabricWorkspaceId}
-                    onChange={handleEditFieldChange('fabricWorkspaceId')}
-                    placeholder="Optional — used for OneLake shortcut guidance"
-                  />
-                </Field>
                 <Field label="Primary Contact Email" required>
                   <Input
                     value={editForm.primaryContactEmail}
@@ -392,7 +374,7 @@ export default function InstitutionsPage() {
                   </Field>
                   <Field
                     label="Enable Automated Fulfillment"
-                    hint="When enabled (and the global AutoFulfillOnApproval setting is on), the system will automatically create Fabric shortcuts as the Application Identity upon approval. Requires Fabric Workspace ID and Source Lakehouse Item ID to be configured."
+                    hint="When enabled (and the global AutoFulfillOnApproval setting is on), the system will automatically create Fabric shortcuts as the Application Identity upon approval. This depends on linked Data Asset workspace metadata and the data product source lakehouse item ID."
                   >
                     <input
                       type="checkbox"

@@ -49,10 +49,11 @@ function ConsentCallbackHandler() {
             await adminApi.updateInstitution(institution.id, {
               name: institution.name,
               purviewAccountName: institution.purviewAccountName,
-              fabricWorkspaceId: institution.fabricWorkspaceId,
+              consortiumDomainIds: institution.consortiumDomainIds,
               primaryContactEmail: institution.primaryContactEmail,
               isActive: institution.isActive,
               adminConsentGranted: true,
+              autoFulfillEnabled: institution.autoFulfillEnabled,
             });
             setConsentMessage({
               type: 'success',

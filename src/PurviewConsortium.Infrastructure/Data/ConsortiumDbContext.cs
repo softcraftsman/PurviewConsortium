@@ -28,7 +28,6 @@ public class ConsortiumDbContext : DbContext
             entity.Property(e => e.Name).HasMaxLength(256).IsRequired();
             entity.Property(e => e.TenantId).HasMaxLength(128).IsRequired();
             entity.Property(e => e.PurviewAccountName).HasMaxLength(256).IsRequired();
-            entity.Property(e => e.FabricWorkspaceId).HasMaxLength(128);
             entity.Property(e => e.PrimaryContactEmail).HasMaxLength(256).IsRequired();
             entity.HasIndex(e => e.TenantId).IsUnique();
             entity.HasIndex(e => e.Name).IsUnique();
@@ -45,6 +44,7 @@ public class ConsortiumDbContext : DbContext
             entity.Property(e => e.OwnerEmail).HasMaxLength(256);
             entity.Property(e => e.SourceSystem).HasMaxLength(256);
             entity.Property(e => e.SensitivityLabel).HasMaxLength(128);
+            entity.Property(e => e.SourceLakehouseItemId).HasMaxLength(256);
 
             entity.HasIndex(e => new { e.InstitutionId, e.PurviewQualifiedName }).IsUnique();
             entity.HasIndex(e => e.IsListed);
@@ -122,6 +122,7 @@ public class ConsortiumDbContext : DbContext
             entity.Property(e => e.FullyQualifiedName).HasMaxLength(2048);
             entity.Property(e => e.AccountName).HasMaxLength(256);
             entity.Property(e => e.WorkspaceName).HasMaxLength(256);
+            entity.Property(e => e.SourceWorkspaceId).HasMaxLength(128);
             entity.Property(e => e.ProvisioningState).HasMaxLength(64);
 
             entity.HasIndex(e => new { e.InstitutionId, e.PurviewAssetId }).IsUnique();
@@ -200,7 +201,6 @@ public class ConsortiumDbContext : DbContext
                 Name = "Contoso University",
                 TenantId = "contoso-tenant-id",
                 PurviewAccountName = "contoso-purview",
-                FabricWorkspaceId = "contoso-workspace-id",
                 PrimaryContactEmail = "datasteward@contoso.edu",
                 IsActive = true,
                 AdminConsentGranted = true,
@@ -213,7 +213,6 @@ public class ConsortiumDbContext : DbContext
                 Name = "Fabrikam Medical Center",
                 TenantId = "fabrikam-tenant-id",
                 PurviewAccountName = "fabrikam-purview",
-                FabricWorkspaceId = "fabrikam-workspace-id",
                 PrimaryContactEmail = "data@fabrikam.org",
                 IsActive = true,
                 AdminConsentGranted = true,

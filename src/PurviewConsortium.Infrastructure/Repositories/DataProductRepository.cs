@@ -14,6 +14,8 @@ public class DataProductRepository : IDataProductRepository
     public async Task<DataProduct?> GetByIdAsync(Guid id) =>
         await _db.DataProducts
             .Include(d => d.Institution)
+            .Include(d => d.DataProductDataAssets)
+                .ThenInclude(link => link.DataAsset)
             .FirstOrDefaultAsync(d => d.Id == id);
 
     public async Task<DataProduct?> GetByPurviewQualifiedNameAsync(string qualifiedName, Guid institutionId) =>

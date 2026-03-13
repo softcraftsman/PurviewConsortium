@@ -60,7 +60,6 @@ public class InstitutionsController : ControllerBase
             Name = dto.Name,
             TenantId = dto.TenantId,
             PurviewAccountName = dto.PurviewAccountName,
-            FabricWorkspaceId = dto.FabricWorkspaceId,
             ConsortiumDomainIds = dto.ConsortiumDomainIds,
             PrimaryContactEmail = dto.PrimaryContactEmail,
             IsActive = true,
@@ -97,7 +96,6 @@ public class InstitutionsController : ControllerBase
 
         institution.Name = dto.Name;
         institution.PurviewAccountName = dto.PurviewAccountName;
-        institution.FabricWorkspaceId = dto.FabricWorkspaceId;
         institution.ConsortiumDomainIds = dto.ConsortiumDomainIds;
         institution.PrimaryContactEmail = dto.PrimaryContactEmail;
         institution.IsActive = dto.IsActive;
@@ -180,7 +178,7 @@ public class InstitutionsController : ControllerBase
 
     private static InstitutionDto MapToDto(Institution i) => new(
         i.Id, i.Name, i.TenantId, i.PurviewAccountName,
-        i.FabricWorkspaceId, i.ConsortiumDomainIds, i.PrimaryContactEmail,
+        i.ConsortiumDomainIds, i.PrimaryContactEmail,
         i.IsActive, i.AdminConsentGranted, i.AutoFulfillEnabled,
         i.CreatedDate, i.ModifiedDate);
 }

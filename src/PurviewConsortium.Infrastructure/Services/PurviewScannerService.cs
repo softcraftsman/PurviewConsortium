@@ -1321,6 +1321,7 @@ public class PurviewScannerService : IPurviewScannerService
             result.AssetType = GetStringProperty(source, "assetType");
             result.FullyQualifiedName = GetStringProperty(source, "fqn");
             result.AccountName = GetStringProperty(source, "accountName");
+            result.SourceWorkspaceId = GetStringProperty(source, "workspaceId");
 
             if (source.TryGetProperty("lastRefreshedAt", out var refreshed))
             {
@@ -1332,6 +1333,7 @@ public class PurviewScannerService : IPurviewScannerService
             if (source.TryGetProperty("assetAttributes", out var attrs) && attrs.ValueKind == JsonValueKind.Object)
             {
                 result.WorkspaceName = GetStringProperty(attrs, "workspaceName");
+                result.SourceWorkspaceId ??= GetStringProperty(attrs, "workspaceId");
             }
         }
 

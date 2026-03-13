@@ -47,12 +47,11 @@ public class AutoFulfillmentResult
 public interface IFabricShortcutService
 {
     /// <summary>
-    /// Creates an external data share from the source institution's workspace item,
+    /// Creates an external data share from the source data product's workspace item,
     /// then creates a OneLake shortcut in the consumer's target lakehouse.
     /// </summary>
-    /// <param name="sourceWorkspaceId">Source institution's Fabric workspace ID.</param>
+    /// <param name="sourceWorkspaceId">Source data asset's Fabric workspace ID.</param>
     /// <param name="sourceItemId">The item ID (e.g. lakehouse) in the source workspace to share.</param>
-    /// <param name="sourceWorkspaceId">Source institution's Fabric workspace containing the lakehouse.</param>
     /// <param name="sourceItemId">Source lakehouse item ID (the Data Product's Purview Data Asset).</param>
     /// <param name="sourceTenantId">Source institution's Azure AD tenant ID.</param>
     /// <param name="recipientTenantId">Consumer institution's Azure AD tenant ID.</param>
@@ -76,7 +75,7 @@ public interface IFabricShortcutService
     /// Creates a direct OneLake shortcut within the same Azure AD tenant.
     /// No external data share is required because both workspaces belong to the same tenant.
     /// </summary>
-    /// <param name="sourceWorkspaceId">Source institution's Fabric workspace ID.</param>
+    /// <param name="sourceWorkspaceId">Source data asset's Fabric workspace ID.</param>
     /// <param name="sourceItemId">Source lakehouse item ID.</param>
     /// <param name="tenantId">Shared Azure AD tenant ID.</param>
     /// <param name="targetWorkspaceId">Consumer's target Fabric workspace ID.</param>
