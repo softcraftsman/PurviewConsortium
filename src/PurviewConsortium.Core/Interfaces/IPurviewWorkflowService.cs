@@ -63,4 +63,11 @@ public interface IPurviewWorkflowService
         string workflowRunId,
         string? userAccessToken = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Checks whether a Purview account name resolves to a reachable endpoint.
+    /// Makes an unauthenticated probe to https://{accountName}.purview.azure.com/ —
+    /// any HTTP response (including 401/403) means the account exists.
+    /// </summary>
+    Task<bool> VerifyAccountReachableAsync(string accountName, CancellationToken cancellationToken = default);
 }

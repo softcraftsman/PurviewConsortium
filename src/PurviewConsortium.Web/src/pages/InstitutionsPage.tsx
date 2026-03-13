@@ -59,6 +59,8 @@ export default function InstitutionsPage() {
     adminConsentGranted: false,
     autoFulfillEnabled: false,
   });
+  const [addPurviewVerify, setAddPurviewVerify] = useState<{ status: 'valid' | 'invalid'; message: string } | null>(null);
+  const [editPurviewVerify, setEditPurviewVerify] = useState<{ status: 'valid' | 'invalid'; message: string } | null>(null);
 
   const clientId = import.meta.env.VITE_AZURE_CLIENT_ID || '';
   const redirectUri = window.location.origin;
@@ -100,6 +102,7 @@ export default function InstitutionsPage() {
       queryClient.invalidateQueries({ queryKey: ['institutions'] });
       setCreatedInstitution({ name: form.name, tenantId: form.tenantId });
       setForm(emptyForm);
+      setAddPurviewVerify(null);
       setAddOpen(false);
     },
   });
@@ -145,7 +148,20 @@ export default function InstitutionsPage() {
     },
   });
 
+  const verifyAddPurviewMutation = useMutation({
+    mutationFn: (accountName: string) => adminApi.verifyPurviewAccount(accountName),
+    onSuccess: (res) => setAddPurviewVerify({ status: res.data.reachable ? 'valid' : 'invalid', message: res.data.message }),
+    onError: () => setAddPurviewVerify({ status: 'invalid', message: 'Could not verify account. Try again.' }),
+  });
+
+  const verifyEditPurviewMutation = useMutation({
+    mutationFn: (accountName: string) => adminApi.verifyPurviewAccount(accountName),
+    onSuccess: (res) => setEditPurviewVerify({ status: res.data.reachable ? 'valid' : 'invalid', message: res.data.message }),
+    onError: () => setEditPurviewVerify({ status: 'invalid', message: 'Could not verify account. Try again.' }),
+  });
+
   const openEdit = (inst: Institution) => {
+    setEditPurviewVerify(null);
     setEditForm({
       name: inst.name,
       purviewAccountName: inst.purviewAccountName ?? '',
@@ -214,10 +230,36 @@ export default function InstitutionsPage() {
                     <Field label="Purview Account Name" required>
                       <Input
                         value={form.purviewAccountName}
-                        onChange={handleFieldChange('purviewAccountName')}
+                        onChange={(e, data) => {
+                          handleFieldChange('purviewAccountName')(e, data);
+                          setAddPurviewVerify(null);
+                        }}
                         placeholder="e.g. contoso-purview"
                       />
                     </Field>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '-4px' }}>
+                      <Button
+                        appearance="subtle"
+                        size="small"
+                        icon={verifyAddPurviewMutation.isPending ? <Spinner size="tiny" label="" /> : <ArrowSync24Regular />}
+                        disabled={!form.purviewAccountName.trim() || verifyAddPurviewMutation.isPending}
+                        onClick={() => verifyAddPurviewMutation.mutate(form.purviewAccountName.trim())}
+                      >
+                        Verify
+                      </Button>
+                      {addPurviewVerify && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {addPurviewVerify.status === 'valid' ? (
+                            <CheckmarkCircle24Regular style={{ color: tokens.colorPaletteGreenForeground1, fontSize: '14px' }} />
+                          ) : (
+                            <DismissCircle24Regular style={{ color: tokens.colorPaletteRedForeground1, fontSize: '14px' }} />
+                          )}
+                          <Text size={200} style={{ color: addPurviewVerify.status === 'valid' ? tokens.colorPaletteGreenForeground1 : tokens.colorPaletteRedForeground1 }}>
+                            {addPurviewVerify.message}
+                          </Text>
+                        </div>
+                      )}
+                    </div>
                     <Field label="Primary Contact Email" required>
                       <Input
                         value={form.primaryContactEmail}
@@ -333,10 +375,36 @@ export default function InstitutionsPage() {
                 <Field label="Purview Account Name" required>
                   <Input
                     value={editForm.purviewAccountName}
-                    onChange={handleEditFieldChange('purviewAccountName')}
+                    onChange={(e, data) => {
+                      handleEditFieldChange('purviewAccountName')(e, data);
+                      setEditPurviewVerify(null);
+                    }}
                     placeholder="e.g. contoso-purview"
                   />
                 </Field>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '-4px' }}>
+                  <Button
+                    appearance="subtle"
+                    size="small"
+                    icon={verifyEditPurviewMutation.isPending ? <Spinner size="tiny" label="" /> : <ArrowSync24Regular />}
+                    disabled={!editForm.purviewAccountName.trim() || verifyEditPurviewMutation.isPending}
+                    onClick={() => verifyEditPurviewMutation.mutate(editForm.purviewAccountName.trim())}
+                  >
+                    Verify
+                  </Button>
+                  {editPurviewVerify && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {editPurviewVerify.status === 'valid' ? (
+                        <CheckmarkCircle24Regular style={{ color: tokens.colorPaletteGreenForeground1, fontSize: '14px' }} />
+                      ) : (
+                        <DismissCircle24Regular style={{ color: tokens.colorPaletteRedForeground1, fontSize: '14px' }} />
+                      )}
+                      <Text size={200} style={{ color: editPurviewVerify.status === 'valid' ? tokens.colorPaletteGreenForeground1 : tokens.colorPaletteRedForeground1 }}>
+                        {editPurviewVerify.message}
+                      </Text>
+                    </div>
+                  )}
+                </div>
                 <Field label="Primary Contact Email" required>
                   <Input
                     value={editForm.primaryContactEmail}

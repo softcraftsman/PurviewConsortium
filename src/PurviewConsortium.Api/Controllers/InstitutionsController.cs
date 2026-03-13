@@ -17,6 +17,7 @@ public class InstitutionsController : ControllerBase
     private readonly IAuditLogRepository _auditLogRepo;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<InstitutionsController> _logger;
+    private readonly IPurviewWorkflowService _workflowService;
 
     public InstitutionsController(
         IInstitutionRepository institutionRepo,
@@ -24,7 +25,8 @@ public class InstitutionsController : ControllerBase
         ISyncHistoryRepository syncHistoryRepo,
         IAuditLogRepository auditLogRepo,
         IServiceScopeFactory scopeFactory,
-        ILogger<InstitutionsController> logger)
+        ILogger<InstitutionsController> logger,
+        IPurviewWorkflowService workflowService)
     {
         _institutionRepo = institutionRepo;
         _syncOrchestrator = syncOrchestrator;
@@ -32,6 +34,7 @@ public class InstitutionsController : ControllerBase
         _auditLogRepo = auditLogRepo;
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _workflowService = workflowService;
     }
 
     /// <summary>List all institutions.</summary>
@@ -171,6 +174,20 @@ public class InstitutionsController : ControllerBase
         });
 
         return Accepted(new { message = $"Scan triggered for {institution.Name}. Check sync history for results." });
+    }
+
+    /// <summary>Probe whether a Purview account name resolves to a reachable endpoint.</summary>
+    [HttpPost("verify-purview")]
+    public async Task<ActionResult<PurviewAccountVerifyResultDto>> VerifyPurviewAccount([FromBody] VerifyPurviewAccountDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.AccountName))
+            return BadRequest(new PurviewAccountVerifyResultDto(false, "Account name is required."));
+
+        var reachable = await _workflowService.VerifyAccountReachableAsync(dto.AccountName.Trim());
+        var message = reachable
+            ? $"'{dto.AccountName}' is a valid Purview account."
+            : $"'{dto.AccountName}' could not be reached. Check the account name and try again.";
+        return Ok(new PurviewAccountVerifyResultDto(reachable, message));
     }
 
     private string? GetCurrentUserId() =>

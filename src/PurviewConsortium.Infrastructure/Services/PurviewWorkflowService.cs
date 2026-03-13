@@ -417,6 +417,31 @@ public class PurviewWorkflowService : IPurviewWorkflowService
         }
     }
 
+    public async Task<bool> VerifyAccountReachableAsync(string accountName, CancellationToken cancellationToken = default)
+    {
+        // Validate format before making a network call (SSRF prevention — only allow valid Purview account names)
+        if (!System.Text.RegularExpressions.Regex.IsMatch(accountName, @"^[a-zA-Z0-9][a-zA-Z0-9\-]{0,62}[a-zA-Z0-9]$"))
+            return false;
+
+        var url = $"https://{accountName}.purview.azure.com/";
+        try
+        {
+            var httpClient = _httpClientFactory.CreateClient();
+            var response = await httpClient.GetAsync(url, cancellationToken);
+            // Any HTTP response (including 401/403) confirms the account exists
+            return true;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogDebug("Purview account '{Account}' not reachable: {Message}", accountName, ex.Message);
+            return false;
+        }
+        catch (TaskCanceledException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>
     /// Safely extract a string from a JsonElement. If the element is an object or array,
     /// returns its JSON representation instead of throwing InvalidOperationException.

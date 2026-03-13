@@ -244,6 +244,8 @@ export const adminApi = {
   getSyncHistory: (params?: Record<string, string>) =>
     api.get<SyncHistoryItem[]>('/admin/sync/history', { params }),
   triggerFullScan: () => api.post('/admin/sync/trigger'),
+  verifyPurviewAccount: (accountName: string) =>
+    api.post<{ reachable: boolean; message: string }>('/admin/institutions/verify-purview', { accountName }),
 };
 
 export const logsApi = {

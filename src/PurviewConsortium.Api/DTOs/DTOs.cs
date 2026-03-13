@@ -33,6 +33,9 @@ public record UpdateInstitutionDto(
     bool AdminConsentGranted,
     bool AutoFulfillEnabled);
 
+public record VerifyPurviewAccountDto(string AccountName);
+public record PurviewAccountVerifyResultDto(bool Reachable, string Message);
+
 // --- Data Product DTOs ---
 
 public record DataProductListDto(
