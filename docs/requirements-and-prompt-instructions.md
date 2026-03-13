@@ -31,7 +31,7 @@ Build a proof-of-concept web application that serves as a **centralized, searcha
 | ID | Requirement | Priority |
 |----|------------|----------|
 | FR-01 | The system shall allow consortium administrators to register new member institutions. | Must |
-| FR-02 | Each institution registration shall capture: institution name, Purview tenant ID, Purview account name, and primary contact. Source Fabric workspace information should come from linked Data Asset metadata rather than the institution record. | Must |
+| FR-02 | Each institution registration shall capture: institution name, Purview tenant ID, Purview account name, primary contact email, optional Purview governance domain IDs (to scope scans to specific domains), and an auto-fulfillment opt-in flag. Source Fabric workspace information comes from linked Data Asset metadata rather than the institution record. | Must |
 | FR-03 | The system shall validate connectivity to each institution's Purview instance upon registration. | Must |
 | FR-04 | The system shall support enabling/disabling an institution without deleting its configuration. | Should |
 
@@ -41,7 +41,7 @@ Build a proof-of-concept web application that serves as a **centralized, searcha
 |----|------------|----------|
 | FR-10 | The system shall periodically scan each registered institution's Purview catalog for Data Products tagged as consortium-shareable. | Must |
 | FR-11 | The tagging convention for shareable Data Products shall use the Purview glossary term `Consortium-Shareable`. Institutions apply this term to Data Products they wish to share with the consortium. | Must |
-| FR-12 | The system shall extract and store the following metadata for each shareable Data Product: name, description, owner, schema/columns, classifications, sensitivity labels, glossary terms, source system, last updated date, and institution of origin. | Must |
+| FR-12 | The system shall extract and store all available metadata for each shareable Data Product from the Purview Unified Catalog. Core fields include: name, description, owner, schema/columns, classifications, sensitivity labels, glossary terms, source system, and institution of origin. Where available, the system shall also capture Unified Catalog enrichment fields such as governance domain, data product type, endorsement status, quality score, update frequency, business use description, terms of use, documentation links, and linked data assets. The full field set is defined in the data model (Section 6). | Must |
 | FR-13 | The scan shall run on a configurable schedule (default: every 6 hours) and support on-demand triggering. | Must |
 | FR-14 | The system shall detect when a Data Product is no longer tagged as shareable and mark it as delisted in the catalog (soft delete). | Should |
 | FR-15 | The system shall maintain a sync history/audit log of all scan operations and their results. | Should |
@@ -54,9 +54,10 @@ Build a proof-of-concept web application that serves as a **centralized, searcha
 | FR-21 | The website shall provide full-text search across Data Product name, description, schema columns, glossary terms, and classifications. | Must |
 | FR-22 | The website shall support filtering by: institution, classification, sensitivity label, glossary term, source system type, and date range. | Must |
 | FR-23 | The website shall support sorting by: relevance, name, institution, last updated date. | Must |
-| FR-24 | Each Data Product detail page shall display: full metadata, schema with column-level descriptions and classifications, owning institution, contact information, and an "Request Access" action. | Must |
+| FR-24 | Each Data Product detail page shall display: full metadata, schema with column-level descriptions and classifications, owning institution, contact information, linked data assets, documentation links, terms of use, and a "Request Access" action. | Must |
 | FR-25 | The website shall display the current access request status for Data Products the logged-in user has previously requested. | Should |
 | FR-26 | The website shall provide a dashboard summarizing catalog statistics: total Data Products, products per institution, recent additions, and pending requests. | Should |
+| FR-27 | The catalog shall expose browsable data assets (individual Fabric lakehouses, data warehouses, and other Fabric items) linked to Data Products via the Purview Unified Catalog. | Could |
 
 ### 3.4 Access Request Workflow
 
@@ -66,19 +67,21 @@ Build a proof-of-concept web application that serves as a **centralized, searcha
 | FR-31 | The access request shall capture: requesting user, requesting institution, target Fabric workspace/lakehouse, business justification, and requested access duration (or indefinite). | Must |
 | FR-32 | Upon submission, the system shall notify the owning institution via email that a new access request is pending. | Must |
 | FR-33 | The system shall provide an API endpoint that the source institution's internal workflow can call to update request status (approved, denied, fulfilled, revoked). | Must |
-| FR-34 | The system shall track the full lifecycle of each request: Submitted → Under Review → Approved → Fulfilled → Active → Revoked/Expired. | Must |
+| FR-34 | The system shall track the full lifecycle of each request: Submitted → Under Review → Approved → Fulfilled → Active → Revoked/Expired/Denied/Cancelled. | Must |
 | FR-35 | The system shall allow the requesting user to cancel a pending request. | Should |
 | FR-36 | The system shall support configurable auto-expiration of access grants. | Could |
+| FR-37 | The system shall automatically detect whether a fulfillment requires an internal (same-tenant) or external (cross-tenant) OneLake sharing path based on the requesting and owning institution's tenant IDs, and apply the appropriate fulfillment flow for each. | Must |
 
 ### 3.5 Data Share Fulfillment (Fabric OneLake Shortcuts)
 
 | ID | Requirement | Priority |
 |----|------------|----------|
 | FR-40 | Upon approval, the system shall provide the owning institution with the information needed to create an external data share (target tenant, workspace, lakehouse details). | Must |
-| FR-41 | The system shall provide a guided manual fulfillment flow showing institution admins all details needed to create the share via the Fabric portal. | Must |
-| FR-41a | As a stretch goal, the system shall support an automated flow where, upon approval, a Fabric external data share / OneLake shortcut is created programmatically via API. | Could |
+| FR-41 | The system shall provide a guided manual fulfillment flow showing institution admins all details needed to create the share via the Fabric portal, including step-by-step instructions tailored to the detected share type (internal or external). | Must |
+| FR-41a | The system shall support an automated flow where, upon approval, a Fabric external data share / OneLake shortcut is created programmatically via the Fabric API. Automated fulfillment can be toggled globally (via configuration) and per institution. | Should |
 | FR-42 | The system shall update the access request status to "Fulfilled" once the shortcut/share is confirmed active. | Must |
 | FR-43 | The system shall support revoking an active share, which should trigger removal of the OneLake shortcut. | Should |
+| FR-44 | The system shall support retrying a failed automated fulfillment attempt without requiring a new access request. | Should |
 
 ### 3.6 Authentication & Authorization
 
@@ -86,9 +89,11 @@ Build a proof-of-concept web application that serves as a **centralized, searcha
 |----|------------|----------|
 | FR-50 | The website shall authenticate users via Microsoft Entra ID (Azure AD) with support for multi-tenant sign-in. | Must |
 | FR-51 | The system shall authorize users based on roles: Consortium Admin, Institution Admin, Data Consumer. | Must |
-| FR-52 | Consortium Admins can manage institutions, view all requests, and configure system settings. | Must |
+| FR-52 | Consortium Admins can manage institutions, view all requests, configure system settings, view the audit log, and access the system setup guide. | Must |
 | FR-53 | Institution Admins can view/manage requests for their institution's Data Products and trigger scans. | Must |
-| FR-54 | Data Consumers can browse the catalog, search, and submit access requests. | Must |
+| FR-54 | Data Consumers can browse the catalog, search, submit access requests, and track their own request history on a dedicated My Requests page. | Must |
+| FR-55 | The website shall provide a setup guide page with step-by-step instructions for Entra ID app registration and consortium onboarding. | Should |
+| FR-56 | The website shall provide an audit log viewer for consortium administrators showing all user and system actions. | Should |
 
 ---
 
@@ -98,7 +103,7 @@ Build a proof-of-concept web application that serves as a **centralized, searcha
 |----|------------|----------|
 | NFR-01 | The website shall be responsive and usable on desktop and tablet browsers. | Must |
 | NFR-02 | The system shall handle a catalog of up to 10,000 Data Products across 50 institutions for the PoC. | Should |
-| NFR-03 | Search results shall return within 2 seconds for typical queries. | Should |
+| NFR-03 | Search results shall return within 2 seconds for typical queries and support faceted navigation (dynamic filter counts per result set). Azure AI Search is used in production; an in-memory catalog service supports local development without external dependencies. | Should |
 | NFR-04 | All API communications shall use HTTPS/TLS 1.2+. | Must |
 | NFR-05 | Service principal credentials and secrets shall be stored in Azure Key Vault. | Must |
 | NFR-06 | The system shall log all user actions and API calls for audit purposes. | Must |
@@ -165,32 +170,49 @@ Build a proof-of-concept web application that serves as a **centralized, searcha
 - Name
 - TenantId (Azure AD tenant ID)
 - PurviewAccountName
-- SourceWorkspaceId (captured per linked data asset when known)
 - PrimaryContactEmail
 - IsActive (bool)
 - AdminConsentGranted (bool — whether the institution has granted admin consent to the consortium app)
+- ConsortiumDomainIds (string, nullable — comma-separated Purview governance domain IDs to scope scans)
+- AutoFulfillEnabled (bool — opt in to automated Fabric shortcut creation for this institution)
 - CreatedDate
 - ModifiedDate
 ```
 
-> **Note**: No per-institution service principal credentials are stored. The consortium's single multi-tenant app registration is used; each institution grants admin consent during onboarding.
+> **Note**: No per-institution service principal credentials are stored. The consortium's single multi-tenant app registration is used; each institution grants admin consent during onboarding. Source Fabric workspace information is captured from linked Data Asset metadata, not on the institution record.
 
-### DataProduct (Cached from Purview)
+### DataProduct (Cached from Purview Unified Catalog)
 ```
 - DataProductId (GUID, PK)
-- PurviewAssetId (qualified name from Purview)
+- PurviewQualifiedName (qualified name from Purview)
 - InstitutionId (FK)
 - Name
 - Description
 - Owner
+- OwnerEmail
+- OwnerContactsJson (JSON — full contact details)
 - SourceSystem
+- GovernanceDomain
+- DataProductType
+- Status
 - SchemaJson (JSON blob of columns, types, classifications)
-- Classifications (array)
-- GlossaryTerms (array)
+- Classifications (JSON array)
+- GlossaryTerms (JSON array)
 - SensitivityLabel
+- BusinessUse
+- Endorsed (bool)
+- UpdateFrequency
+- DataQualityScore (int, nullable)
+- TermsOfUseUrl (nullable)
+- TermsOfUseJson (JSON array of structured terms, nullable)
+- DocumentationUrl (nullable)
+- DocumentationJson (JSON array of documentation links, nullable)
+- DataAssetsJson (JSON — linked Fabric data assets)
+- SourceLakehouseItemId (nullable — Fabric item ID used for fulfillment)
+- AssetCount (int)
 - LastSyncedFromPurview (datetime)
-- IsListed (bool — false if delisted)
 - PurviewLastModified (datetime)
+- IsListed (bool — false if delisted)
 - CreatedDate
 - ModifiedDate
 ```
@@ -209,8 +231,24 @@ Build a proof-of-concept web application that serves as a **centralized, searcha
 - Status (enum: Submitted, UnderReview, Approved, Denied, Fulfilled, Active, Revoked, Expired, Cancelled)
 - StatusChangedDate
 - StatusChangedBy
-- ExternalShareId (nullable — populated when shortcut is created)
+- ShareType (enum: Internal, External — auto-detected at submission time)
+
+Fulfillment tracking:
+- ExternalShareId (nullable — Fabric external data share ID when created)
+- FabricShortcutName (nullable — name of the created OneLake shortcut)
+- FabricShortcutCreated (bool)
 - ExpirationDate (nullable)
+
+Purview workflow integration:
+- PurviewWorkflowRunId (nullable — links to Purview GrantDataAccess workflow run)
+- PurviewWorkflowStatus (nullable — tracks Purview-side workflow state)
+
+Snapshot fields (denormalized at request creation for self-contained fulfillment):
+- SourceTenantId
+- SourceInstitutionName
+- SourceFabricWorkspaceId (nullable)
+- SourceLakehouseItemId (nullable)
+
 - CreatedDate
 - ModifiedDate
 ```
@@ -241,17 +279,47 @@ Build a proof-of-concept web application that serves as a **centralized, searcha
 - IpAddress
 ```
 
+### DataAsset (Cached from Purview Unified Catalog)
+```
+- DataAssetId (GUID, PK)
+- PurviewAssetId (qualified name from Purview)
+- Name
+- Type (e.g., Lakehouse, DataWarehouse, KQLDatabase)
+- Description
+- AssetType
+- SourceWorkspaceId (Fabric workspace ID)
+- FullyQualifiedName
+- AccountName
+- ContactsJson (JSON)
+- ClassificationsJson (JSON)
+- CreatedDate
+- ModifiedDate
+```
+
+> DataAssets represent individual Fabric items (lakehouses, warehouses, etc.) that compose a Data Product. The relationship is many-to-many via a `DataProductDataAsset` junction table.
+
+### UserRoleAssignment
+```
+- Id (GUID, PK)
+- UserId
+- UserEmail
+- InstitutionId (FK, nullable — null for ConsortiumAdmin)
+- Role (enum: ConsortiumAdmin, InstitutionAdmin, DataConsumer)
+- CreatedDate
+```
+
 ---
 
-## 7. API Endpoints (Draft)
+## 7. API Endpoints
 
 ### Catalog
 | Method | Endpoint | Description |
 |--------|---------|-------------|
-| GET | `/api/catalog/products` | Search/list Data Products (query, filters, paging) |
+| GET | `/api/catalog/products` | Search/list Data Products (query, filters, paging, returns facet counts) |
 | GET | `/api/catalog/products/{id}` | Get Data Product detail |
 | GET | `/api/catalog/stats` | Dashboard statistics |
 | GET | `/api/catalog/filters` | Available filter values (institutions, classifications, etc.) |
+| GET | `/api/catalog/data-assets` | Browse individual data assets linked to Data Products |
 
 ### Access Requests
 | Method | Endpoint | Description |
@@ -259,7 +327,9 @@ Build a proof-of-concept web application that serves as a **centralized, searcha
 | POST | `/api/requests` | Submit a new access request |
 | GET | `/api/requests` | List requests (filtered by user/institution/status) |
 | GET | `/api/requests/{id}` | Get request detail |
-| PATCH | `/api/requests/{id}/status` | Update request status (webhook for institution workflows) |
+| GET | `/api/requests/{id}/fulfillment` | Get fulfillment instructions and details (manual or automated) |
+| PATCH | `/api/requests/{id}/status` | Update request status |
+| POST | `/api/requests/{id}/retry-fulfillment` | Retry a failed automated fulfillment attempt |
 | DELETE | `/api/requests/{id}` | Cancel a pending request |
 
 ### Institutions (Admin)
@@ -267,6 +337,7 @@ Build a proof-of-concept web application that serves as a **centralized, searcha
 |--------|---------|-------------|
 | GET | `/api/admin/institutions` | List all institutions |
 | POST | `/api/admin/institutions` | Register a new institution |
+| GET | `/api/admin/institutions/{id}` | Get institution detail |
 | PUT | `/api/admin/institutions/{id}` | Update institution config |
 | DELETE | `/api/admin/institutions/{id}` | Deactivate institution |
 | POST | `/api/admin/institutions/{id}/scan` | Trigger on-demand Purview scan |
@@ -275,6 +346,14 @@ Build a proof-of-concept web application that serves as a **centralized, searcha
 | Method | Endpoint | Description |
 |--------|---------|-------------|
 | GET | `/api/admin/sync/history` | View sync history across institutions |
+| POST | `/api/admin/sync/trigger` | Trigger a full scan across all active institutions |
+
+### Audit Logs
+| Method | Endpoint | Description |
+|--------|---------|-------------|
+| GET | `/api/admin/logs` | List audit log entries (filtered, paginated) |
+| GET | `/api/admin/logs/user/{userId}` | Audit log for a specific user |
+| GET | `/api/admin/logs/actions` | Audit log filtered by action type |
 
 ---
 
@@ -299,35 +378,23 @@ The scanner will search specifically for Purview Data Product entities that have
 
 ---
 
-## 9. Fabric OneLake Integration Details
+## 9. Fabric OneLake Integration
 
-### 9.1 Shortcut Creation Flow
+The system supports two fulfillment paths, automatically selected based on whether the requesting and owning institutions share the same Entra ID tenant (internal) or are in separate tenants (external).
 
-**Phase 1 — Guided Manual (PoC default):**
+### 9.1 Guided Manual Fulfillment (FR-41)
 
-1. Data Provider institution approves the access request.
-2. The portal displays a **"Fulfillment Details" panel** containing all information the institution admin needs to create the share manually:
-   - Source workspace ID, item ID, item name
-   - Recipient tenant ID, recipient user/principal
-   - Target workspace ID, target lakehouse name
-   - Step-by-step instructions with links to the Fabric portal
-3. The institution admin creates the external data share and OneLake shortcut manually via the Fabric portal.
-4. The institution admin returns to the consortium portal and marks the request as "Fulfilled", optionally entering the external share ID for tracking.
+When a request is approved, the system generates a fulfillment details panel containing all information needed for the institution admin to create the share manually via the Fabric portal: source workspace ID, item ID, item name, recipient tenant ID, recipient principal, and step-by-step instructions tailored to the detected share type. The admin marks the request as "Fulfilled" in the portal once the share is active.
 
-**Phase 2 — Automated (stretch goal):**
+### 9.2 Automated Fulfillment (FR-41a)
 
-1. Data Provider institution approves the access request.
-2. The system calls the **Fabric REST API** to create an external data share:
-   - `POST https://api.fabric.microsoft.com/v1/workspaces/{workspaceId}/items/{itemId}/externalDataShares`
-3. The recipient institution accepts the share, creating a **OneLake shortcut** in their designated lakehouse:
-   - `POST https://api.fabric.microsoft.com/v1/workspaces/{workspaceId}/items/{lakehouseId}/shortcuts`
-4. The system updates the access request status to "Fulfilled" and records the share/shortcut identifiers automatically.
+When automated fulfillment is enabled (globally or per institution), the system calls the Fabric REST API to programmatically create the external data share and OneLake shortcut on approval. The request is automatically marked as "Fulfilled" on success. A retry mechanism handles transient failures without requiring a new request.
 
-### 9.2 Share Revocation
+For internal (same-tenant) shares, a direct OneLake shortcut is created. For external (cross-tenant) shares, an external data share invitation is created first, followed by shortcut creation in the recipient's lakehouse.
 
-1. When access expires or is revoked, the system calls the Fabric API to remove the external data share.
-2. The shortcut in the consumer's lakehouse becomes invalid.
-3. The access request status is updated to "Revoked" or "Expired".
+### 9.3 Share Revocation (FR-43)
+
+When access is revoked or expires, the system calls the Fabric API to remove the external data share. The shortcut in the consumer's lakehouse becomes invalid, and the request status is updated accordingly.
 
 ---
 
@@ -703,7 +770,7 @@ Output the deployed resource URLs and connection strings (as Key Vault reference
 | 1 | Backend framework | **ASP.NET Core 8 (C#)** | Strong Purview/Fabric SDK support, enterprise standard |
 | 2 | Frontend framework | **React + Vite (SPA)** | Lightweight PoC, easy Azure Static Web Apps deployment, no SSR needed |
 | 3 | Service principal strategy | **Single multi-tenant app registration** | Consortium registers one app; each institution grants admin consent. Simpler onboarding. |
-| 4 | OneLake shortcut creation | **Guided manual first, automate later** | Manual fulfillment with detailed instructions for PoC; automated Fabric API integration as stretch goal. |
+| 4 | OneLake shortcut creation | **Guided manual + automated** | Guided manual fulfillment with detailed instructions for PoC; automated Fabric API integration also implemented and togglable per institution. |
 | 5 | Search infrastructure | **Azure AI Search** | Richer relevance ranking, faceted navigation, and semantic search capabilities. |
 | 6 | Notification system | **Email only** | Azure Communication Services for email; no Teams/Slack integration for PoC. |
 | 7 | Tagging mechanism | **Purview glossary term** | Institutions apply the `Consortium-Shareable` glossary term to Data Products. Easy to apply, broadly supported. |
@@ -730,7 +797,7 @@ _All questions have been resolved. See Design Decisions above._
 
 ---
 
-*Document Version: 1.3*
+*Document Version: 1.4*
 *Created: February 13, 2026*
-*Updated: February 13, 2026 — All design decisions finalized, ready to build*
-*Status: Approved — Ready for Implementation*
+*Updated: March 13, 2026 — Requirements updated to reflect evolved implementation: Institution entity (ConsortiumDomainIds, AutoFulfillEnabled), DataProduct Unified Catalog enrichment fields, DataAsset entity, UserRoleAssignment entity, share type detection, automated fulfillment promoted from stretch goal, API endpoints updated, admin UI pages documented, search architecture updated with faceted navigation and dual-mode service.*
+*Status: Approved — Updated to match implementation*
