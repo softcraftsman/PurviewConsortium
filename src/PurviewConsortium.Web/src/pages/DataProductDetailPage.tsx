@@ -287,18 +287,6 @@ export default function DataProductDetailPage() {
         </div>
       )}
 
-      {(product.termsOfUse.length > 0 || product.documentation.length > 0) && (
-        <div className={styles.section}>
-          <Text as="h2" size={600} weight="semibold" block>
-            Related Links
-          </Text>
-          <div className={styles.linkGrid}>
-            <LinkGroup title="Terms of Use" links={product.termsOfUse} emptyText="No terms of use links." />
-            <LinkGroup title="Documentation" links={product.documentation} emptyText="No documentation links." />
-          </div>
-        </div>
-      )}
-
       {product.dataAssets && product.dataAssets.length > 0 && (
         <div className={styles.section}>
           <Text as="h2" size={600} weight="semibold" block>
@@ -452,57 +440,6 @@ function MetaField({ label, value }: { label: string; value?: string | null }) {
         {label}
       </Text>
       <Text>{value || '—'}</Text>
-    </div>
-  );
-}
-
-function LinkGroup({
-  title,
-  links,
-  emptyText,
-  compact = false,
-}: {
-  title: string;
-  links: DataProductLink[];
-  emptyText: string;
-  compact?: boolean;
-}) {
-  const styles = useStyles();
-
-  return (
-    <div className={compact ? undefined : styles.linkGroup}>
-      <Text weight="semibold" block>
-        {title}
-      </Text>
-      {links.length === 0 ? (
-        <Text size={300} style={{ marginTop: '8px', display: 'block' }}>
-          {emptyText}
-        </Text>
-      ) : (
-        <div className={styles.linkList}>
-          {links.map((link, index) => (
-            <div key={`${title}-${link.dataAssetId ?? 'unmapped'}-${link.url ?? link.name ?? index}`} className={styles.linkItem}>
-              <Text size={200} weight="semibold">
-                {link.dataAssetName}
-              </Text>
-              <Text>{link.name || 'Untitled link'}</Text>
-              {link.url ? (
-                <a
-                  className={styles.externalLink}
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Open24Regular fontSize={16} />
-                  <span>{link.url}</span>
-                </a>
-              ) : (
-                <Text size={200}>URL unavailable</Text>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
