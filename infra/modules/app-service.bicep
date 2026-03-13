@@ -89,6 +89,16 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
           value: 'Production'
         }
         {
+          name: 'PURVIEW_CONSORTIUM_USE_REAL_DATABASE'
+          value: 'true'
+        }
+        {
+          // Explicitly provide DefaultConnection through configuration binding
+          // so IConfiguration.GetConnectionString("DefaultConnection") resolves reliably.
+          name: 'ConnectionStrings__DefaultConnection'
+          value: sqlConnectionString
+        }
+        {
           name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
           value: appInsightsConnectionString
         }
