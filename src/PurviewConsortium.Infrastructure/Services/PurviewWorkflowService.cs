@@ -91,12 +91,45 @@ public class PurviewWorkflowService : IPurviewWorkflowService
                 preferredDataAssetGuid ?? "(none)");
 
             // Step 2: Submit the GrantDataAccess workflow request
-            var workflowRunId = await SubmitWorkflowRequestAsync(
-                httpClient, accessToken, purviewEndpoint,
-                assetGuid, businessJustification,
-                requestingUserEmail, requestingUserName, requestingTenantId,
-                targetWorkspaceId, targetLakehouseId,
-                cancellationToken);
+            string workflowRunId;
+            try
+            {
+                workflowRunId = await SubmitWorkflowRequestAsync(
+                    httpClient, accessToken, purviewEndpoint,
+                    assetGuid, businessJustification,
+                    requestingUserEmail, requestingUserName, requestingTenantId,
+                    targetWorkspaceId, targetLakehouseId,
+                    cancellationToken);
+            }
+            catch (InvalidOperationException ex) when (
+                !string.IsNullOrWhiteSpace(preferredDataAssetGuid)
+                && string.Equals(assetGuid, preferredDataAssetGuid, StringComparison.OrdinalIgnoreCase)
+                && IsPurviewEntityNotFoundError(ex.Message))
+            {
+                // Preferred linked GUID appears stale in Purview. Re-resolve from DataMap and retry once.
+                var fallbackAssetGuid = await FindDataMapAssetGuidAsync(
+                    httpClient, accessToken, purviewEndpoint, dataProductName, cancellationToken);
+
+                if (string.IsNullOrWhiteSpace(fallbackAssetGuid) ||
+                    string.Equals(fallbackAssetGuid, assetGuid, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw;
+                }
+
+                _logger.LogWarning(
+                    "Preferred DataMap asset GUID {PreferredGuid} was not found in Purview for product '{Name}'. Retrying submission with fallback GUID {FallbackGuid}.",
+                    preferredDataAssetGuid,
+                    dataProductName,
+                    fallbackAssetGuid);
+
+                assetGuid = fallbackAssetGuid;
+                workflowRunId = await SubmitWorkflowRequestAsync(
+                    httpClient, accessToken, purviewEndpoint,
+                    assetGuid, businessJustification,
+                    requestingUserEmail, requestingUserName, requestingTenantId,
+                    targetWorkspaceId, targetLakehouseId,
+                    cancellationToken);
+            }
 
             _logger.LogInformation(
                 "Purview workflow request submitted successfully. WorkflowRunId: {RunId}",
@@ -122,6 +155,11 @@ public class PurviewWorkflowService : IPurviewWorkflowService
             };
         }
     }
+
+    private static bool IsPurviewEntityNotFoundError(string message) =>
+        message.Contains("Workflow.DataCatalogError.EntityNotFound", StringComparison.OrdinalIgnoreCase)
+        || message.Contains("ATLAS-404-00-005", StringComparison.OrdinalIgnoreCase)
+        || message.Contains("invalid/not found", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Searches the Purview DataMap for an asset matching the given name.

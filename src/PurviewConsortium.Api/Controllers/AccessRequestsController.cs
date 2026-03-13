@@ -800,9 +800,16 @@ public class AccessRequestsController : ControllerBase
 
     private static string? ResolvePreferredDataAssetGuid(DataProduct product)
     {
+        var institutionAccount = product.Institution?.PurviewAccountName;
+
         var linkedAssets = product.DataProductDataAssets
             .Select(link => link.DataAsset)
-            .Where(asset => asset != null && !string.IsNullOrWhiteSpace(asset.PurviewAssetId))
+            .Where(asset =>
+                asset != null
+                && !string.IsNullOrWhiteSpace(asset.PurviewAssetId)
+                && (string.IsNullOrWhiteSpace(institutionAccount)
+                    || string.IsNullOrWhiteSpace(asset.AccountName)
+                    || asset.AccountName.Equals(institutionAccount, StringComparison.OrdinalIgnoreCase)))
             .ToList();
 
         if (linkedAssets.Count == 0)
