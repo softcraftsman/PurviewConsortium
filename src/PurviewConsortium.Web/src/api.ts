@@ -117,6 +117,7 @@ export interface AccessRequest {
   dataProductId: string;
   dataProductName: string;
   owningInstitutionName: string;
+  owningInstitutionPurviewAccountName?: string;
   requestingUserId: string;
   requestingUserEmail: string;
   requestingUserName: string;

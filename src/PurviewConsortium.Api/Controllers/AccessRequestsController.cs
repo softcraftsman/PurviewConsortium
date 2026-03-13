@@ -791,6 +791,7 @@ public class AccessRequestsController : ControllerBase
         r.DataProductId,
         r.DataProduct?.Name ?? "Unknown",
         r.DataProduct?.Institution?.Name ?? "Unknown",
+        r.DataProduct?.Institution?.PurviewAccountName,
         r.RequestingUserId,
         r.RequestingUserEmail,
         r.RequestingUserName,

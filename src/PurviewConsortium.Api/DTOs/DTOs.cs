@@ -131,6 +131,7 @@ public record AccessRequestDto(
     Guid DataProductId,
     string DataProductName,
     string OwningInstitutionName,
+    string? OwningInstitutionPurviewAccountName,
     string RequestingUserId,
     string RequestingUserEmail,
     string RequestingUserName,

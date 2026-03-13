@@ -5,6 +5,7 @@ import {
   Spinner,
   Badge,
   Button,
+  Link,
   Table,
   TableHeader,
   TableHeaderCell,
@@ -50,6 +51,11 @@ const statusColor = (status: string): 'success' | 'warning' | 'danger' | 'inform
 export default function MyRequestsPage() {
   const styles = useStyles();
   const queryClient = useQueryClient();
+
+  const getPurviewWorkflowUrl = (req: AccessRequest) => {
+    if (!req.purviewWorkflowRunId || !req.owningInstitutionPurviewAccountName) return null;
+    return `https://${req.owningInstitutionPurviewAccountName}.purview.azure.com/workflow/workflowruns/${req.purviewWorkflowRunId}?api-version=2022-05-01-preview`;
+  };
 
   const { data: requests, isLoading } = useQuery({
     queryKey: ['myRequests'],
@@ -130,20 +136,27 @@ export default function MyRequestsPage() {
                 </TableCell>
                 <TableCell>
                   {req.purviewWorkflowRunId ? (
-                    <Tooltip content={`Run ID: ${req.purviewWorkflowRunId}`} relationship="label">
-                      <Badge
-                        appearance="tint"
-                        color={
-                          req.purviewWorkflowStatus === 'Completed' ? 'success' :
-                          req.purviewWorkflowStatus === 'Failed' ? 'danger' :
-                          req.purviewWorkflowStatus === 'Canceled' ? 'informative' :
-                          'brand'
-                        }
-                        icon={<ArrowSync24Regular />}
-                      >
-                        {req.purviewWorkflowStatus || 'Submitted'}
-                      </Badge>
-                    </Tooltip>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Tooltip content={`Run ID: ${req.purviewWorkflowRunId}`} relationship="label">
+                        <Badge
+                          appearance="tint"
+                          color={
+                            req.purviewWorkflowStatus === 'Completed' ? 'success' :
+                            req.purviewWorkflowStatus === 'Failed' ? 'danger' :
+                            req.purviewWorkflowStatus === 'Canceled' ? 'informative' :
+                            'brand'
+                          }
+                          icon={<ArrowSync24Regular />}
+                        >
+                          {req.purviewWorkflowStatus || 'Submitted'}
+                        </Badge>
+                      </Tooltip>
+                      {getPurviewWorkflowUrl(req) && (
+                        <Link href={getPurviewWorkflowUrl(req)!} target="_blank" rel="noreferrer">
+                          Open
+                        </Link>
+                      )}
+                    </div>
                   ) : (
                     <Text size={200} style={{ opacity: 0.5 }}>—</Text>
                   )}
