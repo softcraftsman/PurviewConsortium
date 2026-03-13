@@ -41,7 +41,7 @@ public class PurviewWorkflowService : IPurviewWorkflowService
         string purviewAccountName,
         string tenantId,
         string dataProductName,
-        string? preferredDataAssetGuid,
+        IReadOnlyList<string> preferredDataAssetGuids,
         string businessJustification,
         string requestingUserEmail,
         string requestingUserName,
@@ -61,75 +61,47 @@ public class PurviewWorkflowService : IPurviewWorkflowService
             var httpClient = _httpClientFactory.CreateClient("Purview");
             var purviewEndpoint = $"https://{purviewAccountName}.purview.azure.com";
 
-            // Step 1: Resolve data asset GUID.
-            // Prefer the synced linked DataAsset GUID from our database, fallback to DataMap search.
-            var assetGuid = !string.IsNullOrWhiteSpace(preferredDataAssetGuid)
-                ? preferredDataAssetGuid
-                : await FindDataMapAssetGuidAsync(
-                    httpClient, accessToken, purviewEndpoint, dataProductName, cancellationToken);
+            // Step 1: Build the list of asset GUIDs to submit.
+            // Use all synced linked DataAsset GUIDs from our database;
+            // if none provided, fall back to a DataMap search.
+            var assetGuids = preferredDataAssetGuids
+                .Where(g => !string.IsNullOrWhiteSpace(g))
+                .ToList();
 
-            if (string.IsNullOrEmpty(assetGuid))
+            if (assetGuids.Count == 0)
+            {
+                var fallback = await FindDataMapAssetGuidAsync(
+                    httpClient, accessToken, purviewEndpoint, dataProductName, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(fallback))
+                    assetGuids.Add(fallback!);
+            }
+
+            if (assetGuids.Count == 0)
             {
                 _logger.LogWarning(
-                    "Could not resolve DataMap asset GUID for product '{Name}'. PreferredGuid='{PreferredGuid}'. " +
+                    "Could not resolve any DataMap asset GUIDs for product '{Name}'. " +
                     "Workflow request cannot be submitted without a valid DataMap asset GUID.",
-                    dataProductName,
-                    preferredDataAssetGuid ?? "(none)");
+                    dataProductName);
 
                 return new WorkflowSubmitResult
                 {
                     Success = false,
-                    ErrorMessage = $"No matching DataMap asset found for '{dataProductName}'. " +
+                    ErrorMessage = $"No matching DataMap assets found for '{dataProductName}'. " +
                                    "The Data Product may not have registered assets in the Purview DataMap."
                 };
             }
 
             _logger.LogInformation(
-                "Resolved DataMap asset GUID {Guid} for Data Product '{Name}'. PreferredGuid='{PreferredGuid}'",
-                assetGuid,
-                dataProductName,
-                preferredDataAssetGuid ?? "(none)");
+                "Resolved {Count} DataMap asset GUID(s) for Data Product '{Name}': {Guids}",
+                assetGuids.Count, dataProductName, string.Join(", ", assetGuids));
 
-            // Step 2: Submit the GrantDataAccess workflow request
-            string workflowRunId;
-            try
-            {
-                workflowRunId = await SubmitWorkflowRequestAsync(
-                    httpClient, accessToken, purviewEndpoint,
-                    assetGuid, businessJustification,
-                    requestingUserEmail, requestingUserName, requestingTenantId,
-                    targetWorkspaceId, targetLakehouseId,
-                    cancellationToken);
-            }
-            catch (InvalidOperationException ex) when (
-                !string.IsNullOrWhiteSpace(preferredDataAssetGuid)
-                && string.Equals(assetGuid, preferredDataAssetGuid, StringComparison.OrdinalIgnoreCase)
-                && IsPurviewEntityNotFoundError(ex.Message))
-            {
-                // Preferred linked GUID appears stale in Purview. Re-resolve from DataMap and retry once.
-                var fallbackAssetGuid = await FindDataMapAssetGuidAsync(
-                    httpClient, accessToken, purviewEndpoint, dataProductName, cancellationToken);
-
-                if (string.IsNullOrWhiteSpace(fallbackAssetGuid) ||
-                    string.Equals(fallbackAssetGuid, assetGuid, StringComparison.OrdinalIgnoreCase))
-                {
-                    throw;
-                }
-
-                _logger.LogWarning(
-                    "Preferred DataMap asset GUID {PreferredGuid} was not found in Purview for product '{Name}'. Retrying submission with fallback GUID {FallbackGuid}.",
-                    preferredDataAssetGuid,
-                    dataProductName,
-                    fallbackAssetGuid);
-
-                assetGuid = fallbackAssetGuid;
-                workflowRunId = await SubmitWorkflowRequestAsync(
-                    httpClient, accessToken, purviewEndpoint,
-                    assetGuid, businessJustification,
-                    requestingUserEmail, requestingUserName, requestingTenantId,
-                    targetWorkspaceId, targetLakehouseId,
-                    cancellationToken);
-            }
+            // Step 2: Submit a single GrantDataAccess workflow request with one operation per asset.
+            var workflowRunId = await SubmitWorkflowRequestAsync(
+                httpClient, accessToken, purviewEndpoint,
+                assetGuids, businessJustification,
+                requestingUserEmail, requestingUserName, requestingTenantId,
+                targetWorkspaceId, targetLakehouseId,
+                cancellationToken);
 
             _logger.LogInformation(
                 "Purview workflow request submitted successfully. WorkflowRunId: {RunId}",
@@ -139,7 +111,7 @@ public class PurviewWorkflowService : IPurviewWorkflowService
             {
                 Success = true,
                 WorkflowRunId = workflowRunId,
-                DataMapAssetGuid = assetGuid
+                DataMapAssetGuids = assetGuids
             };
         }
         catch (Exception ex)
@@ -236,7 +208,7 @@ public class PurviewWorkflowService : IPurviewWorkflowService
         HttpClient httpClient,
         string accessToken,
         string purviewEndpoint,
-        string dataAssetGuid,
+        IReadOnlyList<string> dataAssetGuids,
         string businessJustification,
         string requestingUserEmail,
         string requestingUserName,
@@ -255,24 +227,21 @@ public class PurviewWorkflowService : IPurviewWorkflowService
 
         var payload = new
         {
-            operations = new[]
+            operations = dataAssetGuids.Select(guid => new
             {
-                new
+                type = "GrantDataAccess",
+                payload = new Dictionary<string, object>
                 {
-                    type = "GrantDataAccess",
-                    payload = new Dictionary<string, object>
-                    {
-                        ["note"] = businessJustification,
-                        ["purviewDataRole"] = "DataReader",
-                        ["dataAssetGuid"] = dataAssetGuid,
-                        ["requestorEmail"] = requestingUserEmail,
-                        ["requestorName"] = requestingUserName,
-                        ["requestorTenantId"] = requestingTenantId,
-                        ["targetFabricWorkspaceId"] = targetWorkspaceId ?? "",
-                        ["targetLakehouseId"] = targetLakehouseId ?? ""
-                    }
+                    ["note"] = businessJustification,
+                    ["purviewDataRole"] = "DataReader",
+                    ["dataAssetGuid"] = guid,
+                    ["requestorEmail"] = requestingUserEmail,
+                    ["requestorName"] = requestingUserName,
+                    ["requestorTenantId"] = requestingTenantId,
+                    ["targetFabricWorkspaceId"] = targetWorkspaceId ?? "",
+                    ["targetLakehouseId"] = targetLakehouseId ?? ""
                 }
-            },
+            }).ToArray(),
             comment
         };
 

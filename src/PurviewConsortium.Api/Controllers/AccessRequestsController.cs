@@ -118,7 +118,7 @@ public class AccessRequestsController : ControllerBase
                     institution.PurviewAccountName,
                     institution.TenantId,
                     product.Name,
-                    ResolvePreferredDataAssetGuid(product),
+                    ResolvePreferredDataAssetGuids(product),
                     dto.BusinessJustification,
                     request.RequestingUserEmail,
                     request.RequestingUserName,
@@ -798,11 +798,11 @@ public class AccessRequestsController : ControllerBase
     private string? GetCurrentUserId() =>
         User.FindFirst("oid")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
-    private static string? ResolvePreferredDataAssetGuid(DataProduct product)
+    private static IReadOnlyList<string> ResolvePreferredDataAssetGuids(DataProduct product)
     {
         var institutionAccount = product.Institution?.PurviewAccountName;
 
-        var linkedAssets = product.DataProductDataAssets
+        return product.DataProductDataAssets
             .Select(link => link.DataAsset)
             .Where(asset =>
                 asset != null
@@ -810,16 +810,8 @@ public class AccessRequestsController : ControllerBase
                 && (string.IsNullOrWhiteSpace(institutionAccount)
                     || string.IsNullOrWhiteSpace(asset.AccountName)
                     || asset.AccountName.Equals(institutionAccount, StringComparison.OrdinalIgnoreCase)))
+            .Select(asset => asset!.PurviewAssetId)
             .ToList();
-
-        if (linkedAssets.Count == 0)
-            return null;
-
-        // Prefer exact name match, otherwise use the first linked asset as deterministic fallback.
-        var exact = linkedAssets.FirstOrDefault(a =>
-            a!.Name.Equals(product.Name, StringComparison.OrdinalIgnoreCase));
-
-        return (exact ?? linkedAssets[0])!.PurviewAssetId;
     }
 
     private static AccessRequestDto MapToDto(AccessRequest r) => new(
