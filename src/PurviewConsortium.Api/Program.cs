@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Identity.Web;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using PurviewConsortium.Infrastructure;
@@ -205,21 +206,32 @@ END
         ResponseWriter = async (context, report) =>
         {
             context.Response.ContentType = "application/json";
-            var result = new
+            // Use Utf8JsonWriter to avoid reflection-based metadata traversal in JsonSerializer
+            // during health probes on App Service.
+            await using var buffer = new MemoryStream();
+            await using (var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions { Indented = true }))
             {
-                status = report.Status.ToString().ToLowerInvariant(),
-                timestamp = DateTime.UtcNow,
-                checks = report.Entries.Select(e => new
+                writer.WriteStartObject();
+                writer.WriteString("status", report.Status.ToString().ToLowerInvariant());
+                writer.WriteString("timestamp", DateTime.UtcNow);
+                writer.WriteStartArray("checks");
+
+                foreach (var entry in report.Entries)
                 {
-                    name = e.Key,
-                    status = e.Value.Status.ToString().ToLowerInvariant(),
-                    description = e.Value.Description,
-                    duration = e.Value.Duration.TotalMilliseconds + "ms",
-                    exception = e.Value.Exception?.Message,
-                }),
-            };
-            await context.Response.WriteAsync(JsonSerializer.Serialize(result,
-                new JsonSerializerOptions { WriteIndented = true }));
+                    writer.WriteStartObject();
+                    writer.WriteString("name", entry.Key);
+                    writer.WriteString("status", entry.Value.Status.ToString().ToLowerInvariant());
+                    writer.WriteString("description", entry.Value.Description);
+                    writer.WriteString("duration", $"{entry.Value.Duration.TotalMilliseconds}ms");
+                    writer.WriteString("exception", entry.Value.Exception?.Message);
+                    writer.WriteEndObject();
+                }
+
+                writer.WriteEndArray();
+                writer.WriteEndObject();
+            }
+
+            await context.Response.WriteAsync(Encoding.UTF8.GetString(buffer.ToArray()));
         }
     }).AllowAnonymous();
 

@@ -61,11 +61,16 @@ jobs:
       - name: Publish API
         run: dotnet publish src/PurviewConsortium.Api/PurviewConsortium.Api.csproj -c Release -o api-publish --no-build
 
-      - name: Upload API artifact
+      - name: Create API deployment package
+        run: |
+          cd api-publish
+          zip -r ../api.zip .
+
+      - name: Upload API package artifact
         uses: actions/upload-artifact@v4
         with:
-          name: api
-          path: api-publish
+          name: api-package
+          path: api.zip
           retention-days: 1
 
   build_web:
@@ -124,15 +129,15 @@ jobs:
       - name: Download API artifact
         uses: actions/download-artifact@v4
         with:
-          name: api
-          path: api-publish
+          name: api-package
+          path: .
 
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ vars.AZURE_APP_SERVICE_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: api-publish
+          package: api.zip
       # EF Core database migrations are applied automatically on startup
       # via db.Database.Migrate() in Program.cs (Production environment only).
 
