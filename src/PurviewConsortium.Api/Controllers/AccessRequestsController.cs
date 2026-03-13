@@ -118,6 +118,7 @@ public class AccessRequestsController : ControllerBase
                     institution.PurviewAccountName,
                     institution.TenantId,
                     product.Name,
+                    ResolvePreferredDataAssetGuid(product),
                     dto.BusinessJustification,
                     request.RequestingUserEmail,
                     request.RequestingUserName,
@@ -785,6 +786,23 @@ public class AccessRequestsController : ControllerBase
 
     private string? GetCurrentUserId() =>
         User.FindFirst("oid")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+    private static string? ResolvePreferredDataAssetGuid(DataProduct product)
+    {
+        var linkedAssets = product.DataProductDataAssets
+            .Select(link => link.DataAsset)
+            .Where(asset => asset != null && !string.IsNullOrWhiteSpace(asset.PurviewAssetId))
+            .ToList();
+
+        if (linkedAssets.Count == 0)
+            return null;
+
+        // Prefer exact name match, otherwise use the first linked asset as deterministic fallback.
+        var exact = linkedAssets.FirstOrDefault(a =>
+            a!.Name.Equals(product.Name, StringComparison.OrdinalIgnoreCase));
+
+        return (exact ?? linkedAssets[0])!.PurviewAssetId;
+    }
 
     private static AccessRequestDto MapToDto(AccessRequest r) => new(
         r.Id,

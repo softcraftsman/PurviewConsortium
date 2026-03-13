@@ -44,6 +44,7 @@ public interface IPurviewWorkflowService
         string purviewAccountName,
         string tenantId,
         string dataProductName,
+        string? preferredDataAssetGuid,
         string businessJustification,
         string requestingUserEmail,
         string requestingUserName,

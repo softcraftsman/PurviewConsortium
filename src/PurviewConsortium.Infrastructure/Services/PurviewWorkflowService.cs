@@ -41,6 +41,7 @@ public class PurviewWorkflowService : IPurviewWorkflowService
         string purviewAccountName,
         string tenantId,
         string dataProductName,
+        string? preferredDataAssetGuid,
         string businessJustification,
         string requestingUserEmail,
         string requestingUserName,
@@ -60,16 +61,20 @@ public class PurviewWorkflowService : IPurviewWorkflowService
             var httpClient = _httpClientFactory.CreateClient("Purview");
             var purviewEndpoint = $"https://{purviewAccountName}.purview.azure.com";
 
-            // Step 1: Search DataMap for the asset by name to get its GUID
-            var assetGuid = await FindDataMapAssetGuidAsync(
-                httpClient, accessToken, purviewEndpoint, dataProductName, cancellationToken);
+            // Step 1: Resolve data asset GUID.
+            // Prefer the synced linked DataAsset GUID from our database, fallback to DataMap search.
+            var assetGuid = !string.IsNullOrWhiteSpace(preferredDataAssetGuid)
+                ? preferredDataAssetGuid
+                : await FindDataMapAssetGuidAsync(
+                    httpClient, accessToken, purviewEndpoint, dataProductName, cancellationToken);
 
             if (string.IsNullOrEmpty(assetGuid))
             {
                 _logger.LogWarning(
-                    "No DataMap asset found matching Data Product name '{Name}'. " +
+                    "Could not resolve DataMap asset GUID for product '{Name}'. PreferredGuid='{PreferredGuid}'. " +
                     "Workflow request cannot be submitted without a valid DataMap asset GUID.",
-                    dataProductName);
+                    dataProductName,
+                    preferredDataAssetGuid ?? "(none)");
 
                 return new WorkflowSubmitResult
                 {
@@ -79,8 +84,11 @@ public class PurviewWorkflowService : IPurviewWorkflowService
                 };
             }
 
-            _logger.LogInformation("Found DataMap asset GUID {Guid} for Data Product '{Name}'",
-                assetGuid, dataProductName);
+            _logger.LogInformation(
+                "Resolved DataMap asset GUID {Guid} for Data Product '{Name}'. PreferredGuid='{PreferredGuid}'",
+                assetGuid,
+                dataProductName,
+                preferredDataAssetGuid ?? "(none)");
 
             // Step 2: Submit the GrantDataAccess workflow request
             var workflowRunId = await SubmitWorkflowRequestAsync(
