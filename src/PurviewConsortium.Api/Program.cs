@@ -2,6 +2,8 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Identity.Web;
 using System.Text.Json;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -151,6 +153,12 @@ try
         }
         else if (!isDev)
         {
+            // If the database was previously created before migration history was consolidated
+            // into the NewDatabase baseline migration, the tables already exist but the
+            // __EFMigrationsHistory table has no record of the new migration ID.
+            // Insert the baseline migration record so EF Core skips table creation for
+            // tables that are already present, while still applying any future migrations.
+            MarkBaselineMigrationIfTablesExist(db);
             db.Database.Migrate();
             Log.Information("Database migrations applied");
         }
@@ -225,6 +233,49 @@ catch (Exception ex) when (ex is not HostAbortedException)
 finally
 {
     Log.CloseAndFlush();
+}
+
+/// <summary>
+/// When migrations are consolidated into a single baseline migration, a database that was
+/// already created by previous migrations (or EnsureCreated) will have all the tables but
+/// no record of the new migration ID in __EFMigrationsHistory.  Calling Migrate() would
+/// then try to CREATE TABLE on tables that already exist and throw.
+///
+/// This helper detects that case and inserts the baseline migration record so EF Core
+/// skips the table-creation step and only applies incremental migrations added afterwards.
+/// </summary>
+static void MarkBaselineMigrationIfTablesExist(ConsortiumDbContext db)
+{
+    const string baselineMigrationId = "20260313031641_NewDatabase";
+    // Retrieve the EF Core version dynamically so the recorded value stays accurate across upgrades.
+    var efProductVersion = typeof(DbContext).Assembly.GetName().Version?.ToString(3) ?? "8.0.0";
+
+    // The $ prefix is required: SqlQuery<T> takes FormattableString (the safe, parameterized overload).
+    // No interpolated variables means no risk of SQL injection.
+    var coreTableCount = db.Database
+        .SqlQuery<int>($"SELECT COUNT(1) AS Value FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME IN ('AuditLogs', 'Institutions', 'DataProducts') AND TABLE_TYPE = 'BASE TABLE'")
+        .FirstOrDefault();
+
+    if (coreTableCount < 2)
+        return; // Fresh database — let Migrate() build everything from scratch.
+
+    // Use EF Core's IHistoryRepository so the history table schema is always
+    // consistent with the version of EF Core in use (avoids manual DDL drift).
+    var historyRepo = db.GetService<IHistoryRepository>();
+
+    // Ensure __EFMigrationsHistory exists (may be absent when the DB was built via EnsureCreated).
+    db.Database.ExecuteSqlRaw(historyRepo.GetCreateIfNotExistsScript());
+
+    // If the baseline migration is not yet recorded, mark it as applied so that
+    // Migrate() skips trying to CREATE TABLE on tables that already exist.
+    if (!historyRepo.GetAppliedMigrations().Any(r => r.MigrationId == baselineMigrationId))
+    {
+        db.Database.ExecuteSqlRaw(
+            historyRepo.GetInsertScript(new HistoryRow(baselineMigrationId, efProductVersion)));
+        Log.Information(
+            "Existing database detected — baseline migration {MigrationId} marked as applied",
+            baselineMigrationId);
+    }
 }
 
 /// <summary>
