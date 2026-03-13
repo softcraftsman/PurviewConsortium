@@ -60,6 +60,20 @@ const useStyles = makeStyles({
     margin: '0 auto',
     boxSizing: 'border-box',
   },
+  footer: {
+    borderTop: `1px solid ${tokens.colorNeutralStroke1}`,
+    backgroundColor: tokens.colorNeutralBackground1,
+    padding: '12px 24px',
+  },
+  footerInner: {
+    maxWidth: '1200px',
+    width: '100%',
+    margin: '0 auto',
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: '12px',
+    flexWrap: 'wrap',
+  },
 });
 
 interface LayoutProps {
@@ -79,6 +93,9 @@ export default function Layout({ children }: LayoutProps) {
     : pathSegments[1] === 'setup'
     ? '/setup'
     : '/' + pathSegments[1];
+
+  const buildStamp = formatStamp(__BUILD_TIMESTAMP__);
+  const deploymentStamp = formatStamp(__DEPLOY_TIMESTAMP__ || __BUILD_TIMESTAMP__);
 
   return (
     <div className={styles.root}>
@@ -137,6 +154,32 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Content */}
       <main className={styles.content}>{children}</main>
+
+      <footer className={styles.footer}>
+        <div className={styles.footerInner}>
+          <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+            Latest build: {buildStamp}
+          </Text>
+          <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+            Latest deployment: {deploymentStamp}
+          </Text>
+        </div>
+      </footer>
     </div>
   );
+}
+
+function formatStamp(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }

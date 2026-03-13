@@ -8,3 +8,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+declare const __BUILD_TIMESTAMP__: string;
+declare const __DEPLOY_TIMESTAMP__: string;
