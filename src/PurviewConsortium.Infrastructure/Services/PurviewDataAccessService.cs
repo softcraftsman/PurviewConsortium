@@ -342,15 +342,11 @@ public class PurviewDataAccessService : IPurviewDataAccessService
             : el.TryGetProperty("id", out var id) ? id.GetString()
             : null;
 
-        var statusStr = el.TryGetProperty("subscriptionStatus", out var subStatus) ? subStatus.GetString()
-            : el.TryGetProperty("status", out var status) ? status.GetString()
-            : null;
-
         var item = new DataSubscriptionItem
         {
             Id = idStr ?? fallbackId,
             DataProductId = el.TryGetProperty("dataProductId", out var dpId) ? dpId.GetString() ?? string.Empty : string.Empty,
-            Status = statusStr
+            Status = ResolveSubscriptionStatus(el)
         };
 
         if (el.TryGetProperty("subscriberIdentity", out var identity))
@@ -376,6 +372,78 @@ public class PurviewDataAccessService : IPurviewDataAccessService
             item.ModifiedDate = modified.TryGetDateTime(out var dt2) ? dt2 : null;
 
         return item;
+    }
+
+    private static string ResolveSubscriptionStatus(JsonElement el)
+    {
+        if (el.TryGetProperty("subscriptionStatus", out var subscriptionStatus) &&
+            subscriptionStatus.ValueKind == JsonValueKind.String)
+        {
+            var normalized = NormalizeSubscriptionStatus(subscriptionStatus.GetString());
+            if (normalized != null)
+                return normalized;
+        }
+
+        if (el.TryGetProperty("policySetValues", out var policySetValues) &&
+            policySetValues.TryGetProperty("approverDecisions", out var approverDecisions) &&
+            approverDecisions.ValueKind == JsonValueKind.Array &&
+            approverDecisions.GetArrayLength() > 0)
+        {
+            var decisions = approverDecisions
+                .EnumerateArray()
+                .Select(static entry =>
+                    entry.TryGetProperty("decision", out var decision) && decision.ValueKind == JsonValueKind.String
+                        ? decision.GetString()
+                        : null)
+                .Where(static decision => !string.IsNullOrWhiteSpace(decision))
+                .ToList();
+
+            if (decisions.Any(static decision =>
+                    string.Equals(decision, "Approved", StringComparison.OrdinalIgnoreCase)))
+                return "Approved";
+
+            if (decisions.Any(static decision =>
+                    string.Equals(decision, "Rejected", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(decision, "Denied", StringComparison.OrdinalIgnoreCase)))
+                return "Denied";
+
+            if (decisions.All(static decision =>
+                    string.Equals(decision, "NoResponse", StringComparison.OrdinalIgnoreCase)))
+                return "Pending";
+        }
+
+        if (el.TryGetProperty("status", out var status) && status.ValueKind == JsonValueKind.String)
+            return NormalizeSubscriptionStatus(status.GetString()) ?? "Pending";
+
+        return "Pending";
+    }
+
+    private static string? NormalizeSubscriptionStatus(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+            return null;
+
+        return status.Trim().ToLowerInvariant() switch
+        {
+            "pending" => "Pending",
+            "inreview" => "UnderReview",
+            "underreview" => "UnderReview",
+            "review" => "UnderReview",
+            "active" => "Approved",
+            "approved" => "Approved",
+            "denied" => "Denied",
+            "rejected" => "Denied",
+            "cancelled" => "Cancelled",
+            "canceled" => "Cancelled",
+            // These values appear to describe the underlying workflow/provisioning state,
+            // not the end-user approval state, so keep them as Pending in the UI.
+            "completed" => "Pending",
+            "declined" => "Pending",
+            "inprogress" => "Pending",
+            "notstarted" => "Pending",
+            "noresponse" => "Pending",
+            _ => null
+        };
     }
 
     private async Task<string> GetAccessTokenAsync(

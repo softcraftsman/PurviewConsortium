@@ -49,6 +49,35 @@ const statusColor = (status: string): 'success' | 'warning' | 'danger' | 'inform
   }
 };
 
+const normalizePurviewStatus = (status?: string): string => {
+  if (!status) return 'Pending';
+
+  switch (status.toLowerCase()) {
+    case 'approved':
+    case 'active':
+      return 'Approved';
+    case 'denied':
+    case 'rejected':
+      return 'Denied';
+    case 'cancelled':
+    case 'canceled':
+      return 'Cancelled';
+    case 'underreview':
+    case 'inreview':
+    case 'review':
+      return 'UnderReview';
+    case 'completed':
+    case 'declined':
+    case 'inprogress':
+    case 'notstarted':
+    case 'noresponse':
+    case 'pending':
+      return 'Pending';
+    default:
+      return status;
+  }
+};
+
 export default function MyRequestsPage() {
   const styles = useStyles();
   const queryClient = useQueryClient();
@@ -187,10 +216,10 @@ export default function MyRequestsPage() {
                     >
                       <Badge
                         appearance="tint"
-                        color={req.purviewWorkflowStatus ? subscriptionStatusColor(req.purviewWorkflowStatus) : 'brand'}
+                        color={subscriptionStatusColor(normalizePurviewStatus(req.purviewWorkflowStatus))}
                         icon={<DocumentCheckmark24Regular />}
                       >
-                        {req.purviewWorkflowStatus || 'Pending'}
+                        {normalizePurviewStatus(req.purviewWorkflowStatus)}
                       </Badge>
                     </Tooltip>
                   ) : (
