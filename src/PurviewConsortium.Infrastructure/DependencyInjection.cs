@@ -41,6 +41,7 @@ public static class DependencyInjection
         services.AddScoped<IFabricShortcutService, FabricShortcutService>();
         services.AddScoped<ISyncOrchestrator, SyncOrchestrator>();
         services.AddScoped<INotificationService, EmailNotificationService>();
+        services.AddScoped<IPurviewDataAccessService, PurviewDataAccessService>();
 
         // Catalog search — always use database-backed search for the POC.
         // Switch to AzureAISearchService once the search index is populated via sync.

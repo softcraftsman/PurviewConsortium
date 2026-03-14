@@ -247,3 +247,46 @@ public record FulfillmentDetailsDto(
     List<string> MissingFields);
 
 // --- Admin DTOs ---
+
+// --- Data Subscription DTOs ---
+
+/// <summary>Request body for creating a new Purview data subscription.</summary>
+public record CreateDataSubscriptionDto(
+    /// <summary>
+    /// The owning institution's Azure AD tenant ID. This is also used as the
+    /// prefix of the -api.purview-service.microsoft.com hostname.
+    /// </summary>
+    string TenantId,
+    /// <summary>The Purview data product ID (GUID string).</summary>
+    string DataProductId,
+    /// <summary>Azure AD object ID of the subscriber.</summary>
+    string SubscriberObjectId,
+    /// <summary>"User", "ServicePrincipal", or "Group".</summary>
+    string IdentityType,
+    string BusinessJustification,
+    string UseCase);
+
+/// <summary>A data subscription returned from Purview.</summary>
+public record DataSubscriptionDto(
+    string Id,
+    string DataProductId,
+    string SubscriberObjectId,
+    string IdentityType,
+    string? BusinessJustification,
+    string? UseCase,
+    string? Status,
+    DateTime? CreatedDate,
+    DateTime? ModifiedDate);
+
+/// <summary>Response wrapper for the create subscription endpoint.</summary>
+public record CreateDataSubscriptionResponseDto(
+    bool Success,
+    string? SubscriptionId,
+    DataSubscriptionDto? Subscription,
+    string? ErrorMessage);
+
+/// <summary>Response wrapper for the list subscriptions endpoint.</summary>
+public record ListDataSubscriptionsResponseDto(
+    bool Success,
+    List<DataSubscriptionDto> Subscriptions,
+    string? ErrorMessage);

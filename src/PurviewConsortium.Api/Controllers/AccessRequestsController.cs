@@ -16,6 +16,7 @@ public class AccessRequestsController : ControllerBase
     private readonly IInstitutionRepository _institutionRepo;
     private readonly INotificationService _notificationService;
     private readonly IAuditLogRepository _auditLogRepo;
+    private readonly IPurviewDataAccessService _dataAccessService;
     private readonly IPurviewWorkflowService _workflowService;
     private readonly IFabricShortcutService _fabricShortcutService;
     private readonly IConfiguration _configuration;
@@ -27,6 +28,7 @@ public class AccessRequestsController : ControllerBase
         IInstitutionRepository institutionRepo,
         INotificationService notificationService,
         IAuditLogRepository auditLogRepo,
+        IPurviewDataAccessService dataAccessService,
         IPurviewWorkflowService workflowService,
         IFabricShortcutService fabricShortcutService,
         IConfiguration configuration,
@@ -37,6 +39,7 @@ public class AccessRequestsController : ControllerBase
         _institutionRepo = institutionRepo;
         _notificationService = notificationService;
         _auditLogRepo = auditLogRepo;
+        _dataAccessService = dataAccessService;
         _workflowService = workflowService;
         _fabricShortcutService = fabricShortcutService;
         _configuration = configuration;
@@ -104,7 +107,7 @@ public class AccessRequestsController : ControllerBase
 
         var created = await _requestRepo.CreateAsync(request);
 
-        // Submit to Purview Workflow API for the owning institution's approval process
+        // Create Purview Data Access subscription for the owning institution
         try
         {
             var institution = product.Institution;
@@ -114,51 +117,64 @@ public class AccessRequestsController : ControllerBase
                 var userToken = HttpContext.Request.Headers["Authorization"]
                     .FirstOrDefault()?.Replace("Bearer ", "", StringComparison.OrdinalIgnoreCase);
 
-                var workflowResult = await _workflowService.SubmitAccessRequestAsync(
-                    institution.PurviewAccountName,
-                    institution.TenantId,
-                    product.Name,
-                    ResolvePreferredDataAssetGuids(product),
-                    dto.BusinessJustification,
-                    request.RequestingUserEmail,
-                    request.RequestingUserName,
-                    tenantId ?? "",
-                    dto.TargetFabricWorkspaceId,
-                    dto.TargetLakehouseItemId,
-                    userToken);
+                // The Data Access API requires the Purview Data Product ID (GUID string).
+                var purviewDataProductId = product.PurviewQualifiedName;
+                var subscriberObjectId = request.RequestingUserId;
+                var useCase = ResolveUseCase(product.UseCases);
 
-                if (workflowResult.Success)
+                if (string.IsNullOrWhiteSpace(purviewDataProductId) ||
+                    !Guid.TryParse(purviewDataProductId, out _))
                 {
-                    created.PurviewWorkflowRunId = workflowResult.WorkflowRunId;
-                    await _requestRepo.UpdateAsync(created);
-                    _logger.LogInformation(
-                        "Purview workflow triggered. RequestId={RequestId}, WorkflowRunId={WorkflowRunId}, DataProduct={DataProduct}, Institution={Institution}, InstitutionTenantId={InstitutionTenantId}, PurviewAccount={PurviewAccount}, RequestingTenantId={RequestingTenantId}",
+                    _logger.LogWarning(
+                        "Skipping Purview data subscription creation. RequestId={RequestId}, DataProduct={DataProduct}, " +
+                        "Reason=InvalidPurviewDataProductId, PurviewQualifiedName={PurviewQualifiedName}",
                         created.Id,
-                        workflowResult.WorkflowRunId,
                         product.Name,
-                        institution.Name,
-                        institution.TenantId,
-                        institution.PurviewAccountName,
-                        tenantId ?? "");
+                        purviewDataProductId);
                 }
                 else
                 {
-                    _logger.LogWarning(
-                        "Purview workflow submission failed. RequestId={RequestId}, DataProduct={DataProduct}, Institution={Institution}, InstitutionTenantId={InstitutionTenantId}, PurviewAccount={PurviewAccount}, RequestingTenantId={RequestingTenantId}, Error={Error}. " +
-                        "The local request was still created successfully.",
-                        created.Id,
-                        product.Name,
-                        institution.Name,
-                        institution.TenantId,
-                        institution.PurviewAccountName,
-                        tenantId ?? "",
-                        workflowResult.ErrorMessage);
+                    var subscriptionResult = await _dataAccessService.CreateDataSubscriptionAsync(
+                        tenantId: institution.TenantId,
+                        subscriptionId: Guid.NewGuid().ToString(),
+                        dataProductId: purviewDataProductId,
+                        subscriberObjectId: subscriberObjectId,
+                        identityType: "User",
+                        businessJustification: dto.BusinessJustification,
+                        useCase: useCase,
+                        userAccessToken: userToken);
+
+                    if (subscriptionResult.Success)
+                    {
+                        created.ExternalShareId = subscriptionResult.SubscriptionId;
+                        await _requestRepo.UpdateAsync(created);
+                        _logger.LogInformation(
+                            "Purview data subscription created. RequestId={RequestId}, SubscriptionId={SubscriptionId}, DataProduct={DataProduct}, Institution={Institution}, InstitutionTenantId={InstitutionTenantId}, RequestingTenantId={RequestingTenantId}",
+                            created.Id,
+                            subscriptionResult.SubscriptionId,
+                            product.Name,
+                            institution.Name,
+                            institution.TenantId,
+                            tenantId ?? "");
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "Purview data subscription creation failed. RequestId={RequestId}, DataProduct={DataProduct}, Institution={Institution}, InstitutionTenantId={InstitutionTenantId}, RequestingTenantId={RequestingTenantId}, Error={Error}. " +
+                            "The local request was still created successfully.",
+                            created.Id,
+                            product.Name,
+                            institution.Name,
+                            institution.TenantId,
+                            tenantId ?? "",
+                            subscriptionResult.ErrorMessage);
+                    }
                 }
             }
             else
             {
                 _logger.LogInformation(
-                    "Skipping Purview workflow submission. RequestId={RequestId}, Institution={Institution}, Reason=PurviewAccountMissing",
+                    "Skipping Purview data subscription creation. RequestId={RequestId}, Institution={Institution}, Reason=PurviewAccountMissing",
                     created.Id,
                     institution.Name);
             }
@@ -167,7 +183,7 @@ public class AccessRequestsController : ControllerBase
         {
             // Don't fail the request creation if workflow submission fails
             _logger.LogError(ex,
-                "Unexpected error submitting Purview workflow for request {RequestId}. " +
+                "Unexpected error creating Purview data subscription for request {RequestId}. " +
                 "The local request was still created successfully.", created.Id);
         }
 
@@ -189,7 +205,7 @@ public class AccessRequestsController : ControllerBase
             DetailsJson = System.Text.Json.JsonSerializer.Serialize(new
             {
                 RequestId = created.Id,
-                PurviewWorkflowRunId = created.PurviewWorkflowRunId,
+                PurviewSubscriptionId = created.ExternalShareId,
                 DataProduct = product.Name,
                 Institution = product.Institution.Name,
                 Justification = request.BusinessJustification,
@@ -812,6 +828,19 @@ public class AccessRequestsController : ControllerBase
                     || asset.AccountName.Equals(institutionAccount, StringComparison.OrdinalIgnoreCase)))
             .Select(asset => asset!.PurviewAssetId)
             .ToList();
+    }
+
+    private static string ResolveUseCase(string? configuredUseCases)
+    {
+        if (string.IsNullOrWhiteSpace(configuredUseCases))
+            return "Critical Reporting";
+
+        // Use first configured use case from comma/semicolon separated values.
+        var first = configuredUseCases
+            .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault();
+
+        return string.IsNullOrWhiteSpace(first) ? "Critical Reporting" : first;
     }
 
     private static AccessRequestDto MapToDto(AccessRequest r) => new(
