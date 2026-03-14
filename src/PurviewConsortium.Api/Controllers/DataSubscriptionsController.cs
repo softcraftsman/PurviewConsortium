@@ -53,7 +53,7 @@ public class DataSubscriptionsController : ControllerBase
             subscriberObjectId: dto.SubscriberObjectId,
             identityType: dto.IdentityType,
             businessJustification: dto.BusinessJustification,
-            useCase: dto.UseCase,
+            purpose: dto.UseCase,
             userAccessToken: userToken,
             cancellationToken: cancellationToken);
 
