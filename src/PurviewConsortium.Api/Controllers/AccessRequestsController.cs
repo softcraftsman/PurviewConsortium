@@ -586,6 +586,16 @@ public class AccessRequestsController : ControllerBase
                 var purviewStatus = result.Subscription.Status;
                 if (string.IsNullOrEmpty(purviewStatus)) continue;
 
+                if (req.Status == RequestStatus.Cancelled
+                    && req.PurviewWorkflowStatus == "Cancelled"
+                    && (purviewStatus.Equals("Pending", StringComparison.OrdinalIgnoreCase)
+                        || purviewStatus.Equals("UnderReview", StringComparison.OrdinalIgnoreCase)
+                        || purviewStatus.Equals("InReview", StringComparison.OrdinalIgnoreCase)
+                        || purviewStatus.Equals("Review", StringComparison.OrdinalIgnoreCase)))
+                {
+                    purviewStatus = "Cancelled";
+                }
+
                 var changed = false;
                 var canPromoteToApproved = req.Status == RequestStatus.Submitted || req.Status == RequestStatus.UnderReview;
                 var canApplyPurviewTerminalStatus = req.Status != RequestStatus.Fulfilled

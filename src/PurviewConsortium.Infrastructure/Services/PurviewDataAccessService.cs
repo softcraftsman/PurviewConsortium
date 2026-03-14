@@ -304,10 +304,17 @@ public class PurviewDataAccessService : IPurviewDataAccessService
                 var response = await httpClient.SendAsync(request, cancellationToken);
                 var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
-                if (response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                if (response.IsSuccessStatusCode)
                 {
-                    // Treat NotFound as terminal/no-op to avoid blocking local cancel on already-removed items.
                     return new CancelDataSubscriptionResult { Success = true };
+                }
+
+                if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    _logger.LogDebug(
+                        "Purview cancel endpoint not found at {Url} for subscription {SubscriptionId}. Trying next pattern.",
+                        url, subscriptionId);
+                    continue;
                 }
 
                 _logger.LogWarning(
