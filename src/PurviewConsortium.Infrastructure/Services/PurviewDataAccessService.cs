@@ -288,38 +288,80 @@ public class PurviewDataAccessService : IPurviewDataAccessService
             var accessToken = await GetAccessTokenAsync(tenantId, userAccessToken, cancellationToken);
             var baseUrl = BuildBaseUrl(tenantId);
 
-            var cancelUrls = new[]
+            // Fetch the subscription first to discover the workflowId and workflowRunId.
+            // When useWorkflow=true the cancel must go through the Purview workflow engine
+            // using the global (non-tenant-prefixed) endpoint.
+            var subscriptionInfo = await GetDataSubscriptionAsync(tenantId, subscriptionId, userAccessToken, cancellationToken);
+            var workflowId = subscriptionInfo.Subscription?.WorkflowId;
+            var workflowRunId = subscriptionInfo.Subscription?.WorkflowRunId;
+
+            // Build the ordered list of cancel patterns to try:
+            //   1. Workflow-based cancel (primary) — required when useWorkflow=true
+            //   2. Subscription-level :cancel action (fallback for non-workflow subscriptions)
+            var cancelRequests = new List<(HttpMethod Method, string Url, string? Body)>();
+
+            if (!string.IsNullOrEmpty(workflowId) && !string.IsNullOrEmpty(workflowRunId))
             {
+                // Primary: POST .../workflows/{workflowId}/workflowRunId/{workflowRunId}:cancel
+                // Note: global purview-service.microsoft.com host (no tenant prefix).
+                cancelRequests.Add((
+                    HttpMethod.Post,
+                    $"https://api.purview-service.microsoft.com/datagovernance/dataaccess/workflows/{Uri.EscapeDataString(workflowId)}/workflowRunId/{Uri.EscapeDataString(workflowRunId)}:cancel?api-version={DataAccessApiVersion}",
+                    null));
+            }
+
+            // Fallback: subscription-level :cancel
+            cancelRequests.Add((
+                HttpMethod.Post,
                 $"{baseUrl}/dataSubscriptions/{Uri.EscapeDataString(subscriptionId)}:cancel?api-version={DataAccessApiVersion}",
-                $"{baseUrl}/dataSubscriptions/{Uri.EscapeDataString(subscriptionId)}/cancel?api-version={DataAccessApiVersion}"
-            };
+                null));
 
             var httpClient = _httpClientFactory.CreateClient("Purview");
 
-            foreach (var url in cancelUrls)
+            foreach (var candidate in cancelRequests)
             {
-                var request = new HttpRequestMessage(HttpMethod.Post, url);
+                var request = new HttpRequestMessage(candidate.Method, candidate.Url);
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                if (candidate.Body != null)
+                {
+                    request.Content = new StringContent(candidate.Body, Encoding.UTF8, "application/json");
+                }
 
                 var response = await httpClient.SendAsync(request, cancellationToken);
                 var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
                 if (response.IsSuccessStatusCode)
                 {
-                    return new CancelDataSubscriptionResult { Success = true };
+                    var verification = await VerifySubscriptionCancelledAsync(
+                        tenantId, subscriptionId, userAccessToken, cancellationToken);
+
+                    if (verification.Cancelled)
+                    {
+                        return new CancelDataSubscriptionResult { Success = true };
+                    }
+
+                    _logger.LogWarning(
+                        "Purview cancel call succeeded but subscription remains non-terminal. " +
+                        "SubscriptionId={SubscriptionId}, ObservedStatus={ObservedStatus}, Method={Method}, Url={Url}",
+                        subscriptionId,
+                        verification.ObservedStatus ?? "(unknown)",
+                        candidate.Method,
+                        candidate.Url);
+
+                    continue;
                 }
 
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
                     _logger.LogDebug(
                         "Purview cancel endpoint not found at {Url} for subscription {SubscriptionId}. Trying next pattern.",
-                        url, subscriptionId);
+                        candidate.Url, subscriptionId);
                     continue;
                 }
 
                 _logger.LogWarning(
-                    "Purview cancel attempt failed at {Url}. Status={Status}, Body={Body}",
-                    url, response.StatusCode, responseBody);
+                    "Purview cancel attempt failed at {Url}. Method={Method}, Status={Status}, Body={Body}",
+                    candidate.Url, candidate.Method, response.StatusCode, responseBody);
             }
 
             return new CancelDataSubscriptionResult
@@ -339,6 +381,48 @@ public class PurviewDataAccessService : IPurviewDataAccessService
                 ErrorMessage = $"Unexpected error: {ex.Message}"
             };
         }
+    }
+
+    private async Task<(bool Cancelled, string? ObservedStatus)> VerifySubscriptionCancelledAsync(
+        string tenantId,
+        string subscriptionId,
+        string? userAccessToken,
+        CancellationToken cancellationToken)
+    {
+        string? observedStatus = null;
+
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            var current = await GetDataSubscriptionAsync(
+                tenantId,
+                subscriptionId,
+                userAccessToken,
+                cancellationToken);
+
+            if (!current.Success)
+            {
+                // Some providers remove resources post-cancel; treat 404 as terminal.
+                if ((current.ErrorMessage ?? string.Empty).Contains("(404)", StringComparison.OrdinalIgnoreCase))
+                    return (true, "NotFound");
+            }
+            else if (current.Subscription != null)
+            {
+                observedStatus = current.Subscription.Status;
+                if (string.Equals(observedStatus, "Cancelled", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(observedStatus, "Canceled", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(observedStatus, "Denied", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(observedStatus, "Rejected", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(observedStatus, "Declined", StringComparison.OrdinalIgnoreCase))
+                {
+                    return (true, observedStatus);
+                }
+            }
+
+            if (attempt < 3)
+                await Task.Delay(TimeSpan.FromMilliseconds(1200), cancellationToken);
+        }
+
+        return (false, observedStatus);
     }
 
     // ---------------------------------------------------------------------------
@@ -439,6 +523,12 @@ public class PurviewDataAccessService : IPurviewDataAccessService
 
         if (el.TryGetProperty("modifiedDate", out var modified) && modified.ValueKind == JsonValueKind.String)
             item.ModifiedDate = modified.TryGetDateTime(out var dt2) ? dt2 : null;
+
+        // Workflow fields — present when useWorkflow=true
+        if (el.TryGetProperty("workflowId", out var wfId) && wfId.ValueKind == JsonValueKind.String)
+            item.WorkflowId = wfId.GetString();
+        if (el.TryGetProperty("workflowRunId", out var wfRunId) && wfRunId.ValueKind == JsonValueKind.String)
+            item.WorkflowRunId = wfRunId.GetString();
 
         return item;
     }

@@ -14,6 +14,10 @@ public class DataSubscriptionItem
     public string? Status { get; set; }
     public DateTime? CreatedDate { get; set; }
     public DateTime? ModifiedDate { get; set; }
+    /// <summary>The Purview workflow definition ID (present when useWorkflow=true).</summary>
+    public string? WorkflowId { get; set; }
+    /// <summary>The Purview workflow run ID associated with this subscription request.</summary>
+    public string? WorkflowRunId { get; set; }
 }
 
 /// <summary>
