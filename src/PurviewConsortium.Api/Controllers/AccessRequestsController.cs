@@ -275,6 +275,8 @@ public class AccessRequestsController : ControllerBase
         var userToken = HttpContext.Request.Headers["Authorization"]
             .FirstOrDefault()?.Replace("Bearer ", "", StringComparison.OrdinalIgnoreCase);
         await SyncPurviewWorkflowStatusesAsync(requests, userToken);
+        // Sync subscription statuses for new requests using the Data Products API
+        await SyncDataSubscriptionStatusesAsync(requests, userToken);
 
         if (status != null && Enum.TryParse<RequestStatus>(status, true, out var statusEnum))
             requests = requests.Where(r => r.Status == statusEnum).ToList();
@@ -522,6 +524,114 @@ public class AccessRequestsController : ControllerBase
     /// Checks Purview for workflow run status updates and syncs them to local records.
     /// Only checks requests that have a workflow run ID and aren't already terminal.
     /// </summary>
+    /// <summary>
+    /// Syncs subscription statuses for requests that use the Purview Data Products API
+    /// (i.e. have an ExternalShareId but no PurviewWorkflowRunId) and are still pending.
+    /// Maps subscriptionStatus → local RequestStatus and stores the raw Purview status
+    /// in PurviewWorkflowStatus so the UI can display it.
+    /// </summary>
+    private async Task SyncDataSubscriptionStatusesAsync(IList<AccessRequest> requests, string? userToken)
+    {
+        var toSync = requests
+            .Where(r => !string.IsNullOrEmpty(r.ExternalShareId)
+                        && string.IsNullOrEmpty(r.PurviewWorkflowRunId)
+                        && (r.Status == RequestStatus.Submitted || r.Status == RequestStatus.UnderReview))
+            .ToList();
+
+        if (toSync.Count == 0) return;
+
+        foreach (var req in toSync)
+        {
+            try
+            {
+                var institution = req.DataProduct?.Institution;
+                if (institution == null || string.IsNullOrEmpty(institution.TenantId))
+                    continue;
+
+                var result = await _dataAccessService.GetDataSubscriptionAsync(
+                    institution.TenantId,
+                    req.ExternalShareId!,
+                    userToken);
+
+                if (!result.Success || result.Subscription == null) continue;
+
+                var purviewStatus = result.Subscription.Status;
+                if (string.IsNullOrEmpty(purviewStatus)) continue;
+
+                var changed = false;
+
+                // Update the raw Purview status so the UI can display it
+                if (req.PurviewWorkflowStatus != purviewStatus)
+                {
+                    req.PurviewWorkflowStatus = purviewStatus;
+                    changed = true;
+                }
+
+                // Map Purview subscription status to local RequestStatus
+                var isApproved  = purviewStatus.Equals("Active",    StringComparison.OrdinalIgnoreCase)
+                               || purviewStatus.Equals("Approved",  StringComparison.OrdinalIgnoreCase);
+                var isDenied    = purviewStatus.Equals("Denied",    StringComparison.OrdinalIgnoreCase)
+                               || purviewStatus.Equals("Rejected",  StringComparison.OrdinalIgnoreCase);
+                var isCancelled = purviewStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase)
+                               || purviewStatus.Equals("Canceled",  StringComparison.OrdinalIgnoreCase);
+                var isUnderReview = purviewStatus.Equals("InReview",    StringComparison.OrdinalIgnoreCase)
+                                 || purviewStatus.Equals("UnderReview", StringComparison.OrdinalIgnoreCase)
+                                 || purviewStatus.Equals("Review",      StringComparison.OrdinalIgnoreCase);
+
+                if (isApproved && req.Status == RequestStatus.Submitted || isApproved && req.Status == RequestStatus.UnderReview)
+                {
+                    req.Status = RequestStatus.Approved;
+                    req.StatusChangedDate = DateTime.UtcNow;
+                    req.StatusChangedBy = "PurviewSubscription";
+                    changed = true;
+
+                    var (fulfilled, fulfillError) = await TryAutoFulfillAsync(req);
+                    if (!fulfilled)
+                        _logger.LogWarning(
+                            "Auto-fulfillment not completed for request {RequestId}: {Error}",
+                            req.Id, fulfillError);
+                }
+                else if (isDenied)
+                {
+                    req.Status = RequestStatus.Denied;
+                    req.StatusChangedDate = DateTime.UtcNow;
+                    req.StatusChangedBy = "PurviewSubscription";
+                    changed = true;
+                }
+                else if (isCancelled)
+                {
+                    req.Status = RequestStatus.Cancelled;
+                    req.StatusChangedDate = DateTime.UtcNow;
+                    req.StatusChangedBy = "PurviewSubscription";
+                    changed = true;
+                }
+                else if (isUnderReview && req.Status == RequestStatus.Submitted)
+                {
+                    req.Status = RequestStatus.UnderReview;
+                    req.StatusChangedDate = DateTime.UtcNow;
+                    req.StatusChangedBy = "PurviewSubscription";
+                    changed = true;
+                }
+
+                if (changed)
+                {
+                    await _requestRepo.UpdateAsync(req);
+                    _logger.LogInformation(
+                        "Synced Purview subscription status for request {RequestId}: " +
+                        "subscriptionStatus={SubscriptionStatus}, localStatus={Status}",
+                        req.Id, purviewStatus, req.Status);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Failed to sync Purview subscription status for request {RequestId} " +
+                    "(subscriptionId={SubscriptionId}). Skipping.",
+                    req.Id, req.ExternalShareId);
+            }
+        }
+    }
+
     private async Task SyncPurviewWorkflowStatusesAsync(IList<AccessRequest> requests, string? userToken)
     {
         var terminalWorkflowStatuses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)

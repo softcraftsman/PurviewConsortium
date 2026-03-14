@@ -20,6 +20,7 @@ import {
   Delete24Regular,
   ArrowSync24Regular,
   PlugConnected24Regular,
+  DocumentCheckmark24Regular,
 } from '@fluentui/react-icons';
 import { requestsApi, type AccessRequest } from '../api';
 
@@ -55,6 +56,26 @@ export default function MyRequestsPage() {
   const getPurviewWorkflowUrl = (req: AccessRequest) => {
     if (!req.purviewWorkflowRunId || !req.owningInstitutionPurviewAccountName) return null;
     return `https://${req.owningInstitutionPurviewAccountName}.purview.azure.com/workflow/workflowruns/${req.purviewWorkflowRunId}?api-version=2022-05-01-preview`;
+  };
+
+  const subscriptionStatusColor = (status: string): 'success' | 'warning' | 'danger' | 'informative' | 'brand' => {
+    switch (status.toLowerCase()) {
+      case 'active':
+      case 'approved':
+        return 'success';
+      case 'denied':
+      case 'rejected':
+        return 'danger';
+      case 'cancelled':
+      case 'canceled':
+        return 'informative';
+      case 'inreview':
+      case 'underreview':
+      case 'review':
+        return 'warning';
+      default:
+        return 'brand'; // Pending / unknown
+    }
   };
 
   const { data: requests, isLoading } = useQuery({
@@ -101,7 +122,7 @@ export default function MyRequestsPage() {
               <TableHeaderCell>Institution</TableHeaderCell>
               <TableHeaderCell>Type</TableHeaderCell>
               <TableHeaderCell>Status</TableHeaderCell>
-              <TableHeaderCell>Purview Workflow</TableHeaderCell>
+              <TableHeaderCell>Purview Status</TableHeaderCell>
               <TableHeaderCell>Fabric Shortcut</TableHeaderCell>
               <TableHeaderCell>Submitted</TableHeaderCell>
               <TableHeaderCell>Actions</TableHeaderCell>
@@ -136,8 +157,9 @@ export default function MyRequestsPage() {
                 </TableCell>
                 <TableCell>
                   {req.purviewWorkflowRunId ? (
+                    // Legacy: request submitted via the old Purview Workflow API
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Tooltip content={`Run ID: ${req.purviewWorkflowRunId}`} relationship="label">
+                      <Tooltip content={`Workflow run ID: ${req.purviewWorkflowRunId}`} relationship="label">
                         <Badge
                           appearance="tint"
                           color={
@@ -157,6 +179,20 @@ export default function MyRequestsPage() {
                         </Link>
                       )}
                     </div>
+                  ) : req.externalShareId ? (
+                    // New: request submitted via the Purview Data Products subscription API
+                    <Tooltip
+                      content={`Subscription ID: ${req.externalShareId}`}
+                      relationship="label"
+                    >
+                      <Badge
+                        appearance="tint"
+                        color={req.purviewWorkflowStatus ? subscriptionStatusColor(req.purviewWorkflowStatus) : 'brand'}
+                        icon={<DocumentCheckmark24Regular />}
+                      >
+                        {req.purviewWorkflowStatus || 'Pending'}
+                      </Badge>
+                    </Tooltip>
                   ) : (
                     <Text size={200} style={{ opacity: 0.5 }}>—</Text>
                   )}

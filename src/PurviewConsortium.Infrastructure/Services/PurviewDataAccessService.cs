@@ -220,6 +220,58 @@ public class PurviewDataAccessService : IPurviewDataAccessService
         }
     }
 
+    /// <inheritdoc/>
+    public async Task<GetDataSubscriptionResult> GetDataSubscriptionAsync(
+        string tenantId,
+        string subscriptionId,
+        string? userAccessToken = null,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug(
+            "Fetching Purview data subscription {SubscriptionId} in tenant {TenantId}",
+            subscriptionId, tenantId);
+
+        try
+        {
+            var accessToken = await GetAccessTokenAsync(tenantId, userAccessToken, cancellationToken);
+            var baseUrl = BuildBaseUrl(tenantId);
+            var url = $"{baseUrl}/dataSubscriptions/{Uri.EscapeDataString(subscriptionId)}?api-version={DataAccessApiVersion}";
+
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+            var httpClient = _httpClientFactory.CreateClient("Purview");
+            var response = await httpClient.SendAsync(request, cancellationToken);
+            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "Purview Data Access API returned {Status} when fetching subscription {SubscriptionId}: {Body}",
+                    response.StatusCode, subscriptionId, responseBody);
+                return new GetDataSubscriptionResult
+                {
+                    Success = false,
+                    ErrorMessage = $"Purview API error ({(int)response.StatusCode}): {responseBody}"
+                };
+            }
+
+            var item = ParseSubscriptionItem(responseBody, subscriptionId);
+            return new GetDataSubscriptionResult { Success = true, Subscription = item };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to fetch Purview data subscription {SubscriptionId} in tenant {TenantId}",
+                subscriptionId, tenantId);
+            return new GetDataSubscriptionResult
+            {
+                Success = false,
+                ErrorMessage = $"Unexpected error: {ex.Message}"
+            };
+        }
+    }
+
     // ---------------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------------

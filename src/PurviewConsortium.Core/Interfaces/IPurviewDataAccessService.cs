@@ -38,6 +38,16 @@ public class ListDataSubscriptionsResult
 }
 
 /// <summary>
+/// Result of fetching a single data subscription by ID.
+/// </summary>
+public class GetDataSubscriptionResult
+{
+    public bool Success { get; set; }
+    public string? ErrorMessage { get; set; }
+    public DataSubscriptionItem? Subscription { get; set; }
+}
+
+/// <summary>
 /// Manages Purview Data Access subscriptions via the
 /// datagovernance/dataaccess API (purview-service.microsoft.com endpoint).
 /// </summary>
@@ -84,6 +94,15 @@ public interface IPurviewDataAccessService
         string tenantId,
         string? subscriberObjectId = null,
         string? dataProductId = null,
+        string? userAccessToken = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches a single data subscription by its ID.
+    /// </summary>
+    Task<GetDataSubscriptionResult> GetDataSubscriptionAsync(
+        string tenantId,
+        string subscriptionId,
         string? userAccessToken = null,
         CancellationToken cancellationToken = default);
 }
