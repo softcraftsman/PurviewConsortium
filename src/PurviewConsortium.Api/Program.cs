@@ -8,10 +8,12 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Identity.Web;
 using System.Text;
 using System.Text.Json;
+using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using PurviewConsortium.Infrastructure;
 using PurviewConsortium.Infrastructure.Data;
 using Serilog;
+using Serilog.Sinks.ApplicationInsights.TelemetryConverters;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -22,12 +24,31 @@ try
     var builder = WebApplication.CreateBuilder(args);
     var isDev = builder.Environment.IsDevelopment();
 
+    var appInsightsConnectionString =
+        builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]
+        ?? builder.Configuration["ApplicationInsights:ConnectionString"];
+
+    // Register AI provider so ASP.NET telemetry (requests/dependencies/exceptions)
+    // and ILogger traces can flow to Application Insights.
+    if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
+    {
+        builder.Services.AddApplicationInsightsTelemetry(options =>
+        {
+            options.ConnectionString = appInsightsConnectionString;
+        });
+    }
+
     // Serilog
     builder.Host.UseSerilog((context, services, config) => config
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
         .Enrich.FromLogContext()
-        .WriteTo.Console());
+        .WriteTo.Console()
+        .WriteTo.Conditional(
+            _ => !string.IsNullOrWhiteSpace(appInsightsConnectionString),
+            wt => wt.ApplicationInsights(
+                services.GetRequiredService<TelemetryConfiguration>(),
+                TelemetryConverter.Traces)));
 
     // Authentication
     var useEntraAuth = builder.Configuration.GetValue<bool>("UseEntraAuth", false);
