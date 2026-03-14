@@ -534,8 +534,7 @@ public class AccessRequestsController : ControllerBase
     {
         var toSync = requests
             .Where(r => !string.IsNullOrEmpty(r.ExternalShareId)
-                        && string.IsNullOrEmpty(r.PurviewWorkflowRunId)
-                        && (r.Status == RequestStatus.Submitted || r.Status == RequestStatus.UnderReview))
+                        && string.IsNullOrEmpty(r.PurviewWorkflowRunId))
             .ToList();
 
         if (toSync.Count == 0) return;
@@ -559,6 +558,7 @@ public class AccessRequestsController : ControllerBase
                 if (string.IsNullOrEmpty(purviewStatus)) continue;
 
                 var changed = false;
+                var canUpdateLocalStatus = req.Status == RequestStatus.Submitted || req.Status == RequestStatus.UnderReview;
 
                 // Update the raw Purview status so the UI can display it
                 if (req.PurviewWorkflowStatus != purviewStatus)
@@ -578,7 +578,7 @@ public class AccessRequestsController : ControllerBase
                                  || purviewStatus.Equals("UnderReview", StringComparison.OrdinalIgnoreCase)
                                  || purviewStatus.Equals("Review",      StringComparison.OrdinalIgnoreCase);
 
-                if (isApproved && req.Status == RequestStatus.Submitted || isApproved && req.Status == RequestStatus.UnderReview)
+                if (isApproved && canUpdateLocalStatus)
                 {
                     req.Status = RequestStatus.Approved;
                     req.StatusChangedDate = DateTime.UtcNow;
@@ -591,14 +591,14 @@ public class AccessRequestsController : ControllerBase
                             "Auto-fulfillment not completed for request {RequestId}: {Error}",
                             req.Id, fulfillError);
                 }
-                else if (isDenied)
+                else if (isDenied && canUpdateLocalStatus)
                 {
                     req.Status = RequestStatus.Denied;
                     req.StatusChangedDate = DateTime.UtcNow;
                     req.StatusChangedBy = "PurviewSubscription";
                     changed = true;
                 }
-                else if (isCancelled)
+                else if (isCancelled && canUpdateLocalStatus)
                 {
                     req.Status = RequestStatus.Cancelled;
                     req.StatusChangedDate = DateTime.UtcNow;
