@@ -463,6 +463,35 @@ public class AccessRequestsController : ControllerBase
         if (request.Status != RequestStatus.Submitted && request.Status != RequestStatus.UnderReview)
             return BadRequest("Only pending requests can be cancelled.");
 
+        // New request model: if a Purview data subscription exists, cancel it first.
+        if (!string.IsNullOrEmpty(request.ExternalShareId) && string.IsNullOrEmpty(request.PurviewWorkflowRunId))
+        {
+            var institution = request.DataProduct?.Institution;
+            if (institution == null || string.IsNullOrEmpty(institution.TenantId))
+                return BadRequest("Cannot cancel Purview request: owning institution tenant is missing.");
+
+            var userToken = HttpContext.Request.Headers["Authorization"]
+                .FirstOrDefault()?.Replace("Bearer ", "", StringComparison.OrdinalIgnoreCase);
+
+            var cancelResult = await _dataAccessService.CancelDataSubscriptionAsync(
+                institution.TenantId,
+                request.ExternalShareId,
+                userToken);
+
+            if (!cancelResult.Success)
+            {
+                _logger.LogWarning(
+                    "Failed to cancel Purview data subscription for request {RequestId}. SubscriptionId={SubscriptionId}. Error={Error}",
+                    request.Id,
+                    request.ExternalShareId,
+                    cancelResult.ErrorMessage ?? "(unknown)");
+
+                return BadRequest($"Failed to cancel request in Purview: {cancelResult.ErrorMessage ?? "Unknown error"}");
+            }
+
+            request.PurviewWorkflowStatus = "Cancelled";
+        }
+
         request.Status = RequestStatus.Cancelled;
         request.StatusChangedDate = DateTime.UtcNow;
         request.StatusChangedBy = userId;
@@ -526,7 +555,7 @@ public class AccessRequestsController : ControllerBase
     /// </summary>
     /// <summary>
     /// Syncs subscription statuses for requests that use the Purview Data Products API
-    /// (i.e. have an ExternalShareId but no PurviewWorkflowRunId) and are still pending.
+    /// (i.e. have an ExternalShareId but no PurviewWorkflowRunId).
     /// Maps subscriptionStatus → local RequestStatus and stores the raw Purview status
     /// in PurviewWorkflowStatus so the UI can display it.
     /// </summary>
@@ -558,7 +587,11 @@ public class AccessRequestsController : ControllerBase
                 if (string.IsNullOrEmpty(purviewStatus)) continue;
 
                 var changed = false;
-                var canUpdateLocalStatus = req.Status == RequestStatus.Submitted || req.Status == RequestStatus.UnderReview;
+                var canPromoteToApproved = req.Status == RequestStatus.Submitted || req.Status == RequestStatus.UnderReview;
+                var canApplyPurviewTerminalStatus = req.Status != RequestStatus.Fulfilled
+                    && req.Status != RequestStatus.Active
+                    && req.Status != RequestStatus.Revoked
+                    && req.Status != RequestStatus.Expired;
 
                 // Update the raw Purview status so the UI can display it
                 if (req.PurviewWorkflowStatus != purviewStatus)
@@ -578,7 +611,7 @@ public class AccessRequestsController : ControllerBase
                                  || purviewStatus.Equals("UnderReview", StringComparison.OrdinalIgnoreCase)
                                  || purviewStatus.Equals("Review",      StringComparison.OrdinalIgnoreCase);
 
-                if (isApproved && canUpdateLocalStatus)
+                if (isApproved && canPromoteToApproved)
                 {
                     req.Status = RequestStatus.Approved;
                     req.StatusChangedDate = DateTime.UtcNow;
@@ -591,14 +624,14 @@ public class AccessRequestsController : ControllerBase
                             "Auto-fulfillment not completed for request {RequestId}: {Error}",
                             req.Id, fulfillError);
                 }
-                else if (isDenied && canUpdateLocalStatus)
+                else if (isDenied && canApplyPurviewTerminalStatus && req.Status != RequestStatus.Denied)
                 {
                     req.Status = RequestStatus.Denied;
                     req.StatusChangedDate = DateTime.UtcNow;
                     req.StatusChangedBy = "PurviewSubscription";
                     changed = true;
                 }
-                else if (isCancelled && canUpdateLocalStatus)
+                else if (isCancelled && canApplyPurviewTerminalStatus && req.Status != RequestStatus.Cancelled)
                 {
                     req.Status = RequestStatus.Cancelled;
                     req.StatusChangedDate = DateTime.UtcNow;

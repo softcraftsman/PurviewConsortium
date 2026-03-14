@@ -272,6 +272,68 @@ public class PurviewDataAccessService : IPurviewDataAccessService
         }
     }
 
+    /// <inheritdoc/>
+    public async Task<CancelDataSubscriptionResult> CancelDataSubscriptionAsync(
+        string tenantId,
+        string subscriptionId,
+        string? userAccessToken = null,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "Cancelling Purview data subscription {SubscriptionId} in tenant {TenantId}",
+            subscriptionId, tenantId);
+
+        try
+        {
+            var accessToken = await GetAccessTokenAsync(tenantId, userAccessToken, cancellationToken);
+            var baseUrl = BuildBaseUrl(tenantId);
+
+            var cancelUrls = new[]
+            {
+                $"{baseUrl}/dataSubscriptions/{Uri.EscapeDataString(subscriptionId)}:cancel?api-version={DataAccessApiVersion}",
+                $"{baseUrl}/dataSubscriptions/{Uri.EscapeDataString(subscriptionId)}/cancel?api-version={DataAccessApiVersion}"
+            };
+
+            var httpClient = _httpClientFactory.CreateClient("Purview");
+
+            foreach (var url in cancelUrls)
+            {
+                var request = new HttpRequestMessage(HttpMethod.Post, url);
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+                var response = await httpClient.SendAsync(request, cancellationToken);
+                var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+                if (response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    // Treat NotFound as terminal/no-op to avoid blocking local cancel on already-removed items.
+                    return new CancelDataSubscriptionResult { Success = true };
+                }
+
+                _logger.LogWarning(
+                    "Purview cancel attempt failed at {Url}. Status={Status}, Body={Body}",
+                    url, response.StatusCode, responseBody);
+            }
+
+            return new CancelDataSubscriptionResult
+            {
+                Success = false,
+                ErrorMessage = "Purview did not accept subscription cancellation request."
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to cancel Purview data subscription {SubscriptionId} in tenant {TenantId}",
+                subscriptionId, tenantId);
+            return new CancelDataSubscriptionResult
+            {
+                Success = false,
+                ErrorMessage = $"Unexpected error: {ex.Message}"
+            };
+        }
+    }
+
     // ---------------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------------

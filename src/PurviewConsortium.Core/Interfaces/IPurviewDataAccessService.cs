@@ -48,6 +48,15 @@ public class GetDataSubscriptionResult
 }
 
 /// <summary>
+/// Result of cancelling a data subscription.
+/// </summary>
+public class CancelDataSubscriptionResult
+{
+    public bool Success { get; set; }
+    public string? ErrorMessage { get; set; }
+}
+
+/// <summary>
 /// Manages Purview Data Access subscriptions via the
 /// datagovernance/dataaccess API (purview-service.microsoft.com endpoint).
 /// </summary>
@@ -101,6 +110,15 @@ public interface IPurviewDataAccessService
     /// Fetches a single data subscription by its ID.
     /// </summary>
     Task<GetDataSubscriptionResult> GetDataSubscriptionAsync(
+        string tenantId,
+        string subscriptionId,
+        string? userAccessToken = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Cancels a data subscription in Purview by subscription ID.
+    /// </summary>
+    Task<CancelDataSubscriptionResult> CancelDataSubscriptionAsync(
         string tenantId,
         string subscriptionId,
         string? userAccessToken = null,
