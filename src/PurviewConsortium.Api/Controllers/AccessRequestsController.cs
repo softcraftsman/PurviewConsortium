@@ -57,9 +57,11 @@ public class AccessRequestsController : ControllerBase
 
     /// <summary>Submit a new access request.</summary>
     [HttpPost]
-    public async Task<ActionResult<AccessRequestDto>> CreateRequest([FromBody] CreateAccessRequestDto dto)
+    public async Task<ActionResult<CreateAccessRequestResponseDto>> CreateRequest([FromBody] CreateAccessRequestDto dto)
     {
         var userId = GetCurrentUserId();
+        var entraObjectId = GetCurrentEntraObjectId();
+        string? purviewSubmissionWarning = null;
         if (userId == null)
         {
             _logger.LogWarning(
@@ -87,7 +89,7 @@ public class AccessRequestsController : ControllerBase
         var request = new AccessRequest
         {
             DataProductId = dto.DataProductId,
-            RequestingUserId = userId,
+            RequestingUserId = entraObjectId ?? userId,
             RequestingUserEmail = User.FindFirst("preferred_username")?.Value
                 ?? User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "unknown",
             RequestingUserName = User.FindFirst("name")?.Value ?? "Unknown User",
@@ -125,19 +127,34 @@ public class AccessRequestsController : ControllerBase
 
                 // The Data Access API requires the Purview Data Product ID (GUID string).
                 var purviewDataProductId = product.PurviewQualifiedName;
-                var subscriberObjectId = request.RequestingUserId;
+                var subscriberObjectId = entraObjectId;
                 var purpose = "Research";
                 var purviewBusinessJustification = BuildPurviewBusinessJustification(created, product);
 
                 if (string.IsNullOrWhiteSpace(purviewDataProductId) ||
                     !Guid.TryParse(purviewDataProductId, out _))
                 {
+                    purviewSubmissionWarning =
+                        $"Purview subscription was not created because the data product Purview ID is invalid: '{purviewDataProductId}'.";
                     _logger.LogWarning(
                         "Skipping Purview data subscription creation. RequestId={RequestId}, DataProduct={DataProduct}, " +
                         "Reason=InvalidPurviewDataProductId, PurviewQualifiedName={PurviewQualifiedName}",
                         created.Id,
                         product.Name,
                         purviewDataProductId);
+                }
+                else if (string.IsNullOrWhiteSpace(subscriberObjectId) ||
+                    !Guid.TryParse(subscriberObjectId, out _))
+                {
+                    purviewSubmissionWarning =
+                        $"Purview subscription was not created because your Entra object ID is missing or invalid: '{subscriberObjectId ?? "(null)"}'.";
+                    _logger.LogWarning(
+                        "Skipping Purview data subscription creation. RequestId={RequestId}, DataProduct={DataProduct}, " +
+                        "Reason=InvalidSubscriberObjectId, ResolvedSubscriberObjectId={SubscriberObjectId}, StoredRequestingUserId={RequestingUserId}",
+                        created.Id,
+                        product.Name,
+                        subscriberObjectId ?? "(null)",
+                        request.RequestingUserId);
                 }
                 else
                 {
@@ -166,6 +183,7 @@ public class AccessRequestsController : ControllerBase
                     }
                     else
                     {
+                        purviewSubmissionWarning = subscriptionResult.ErrorMessage;
                         _logger.LogWarning(
                             "Purview data subscription creation failed. RequestId={RequestId}, DataProduct={DataProduct}, Institution={Institution}, InstitutionTenantId={InstitutionTenantId}, RequestingTenantId={RequestingTenantId}, Error={Error}. " +
                             "The local request was still created successfully.",
@@ -180,6 +198,8 @@ public class AccessRequestsController : ControllerBase
             }
             else
             {
+                purviewSubmissionWarning =
+                    "Purview subscription was not created because the owning institution does not have a Purview account configured.";
                 _logger.LogInformation(
                     "Skipping Purview data subscription creation. RequestId={RequestId}, Institution={Institution}, Reason=PurviewAccountMissing",
                     created.Id,
@@ -188,6 +208,7 @@ public class AccessRequestsController : ControllerBase
         }
         catch (Exception ex)
         {
+            purviewSubmissionWarning = $"Purview subscription was not created due to an unexpected error: {ex.Message}";
             // Don't fail the request creation if workflow submission fails
             _logger.LogError(ex,
                 "Unexpected error creating Purview data subscription for request {RequestId}. " +
@@ -224,7 +245,11 @@ public class AccessRequestsController : ControllerBase
 
         // Reload with navigation properties
         var reloaded = await _requestRepo.GetByIdAsync(created.Id);
-        return CreatedAtAction(nameof(GetRequest), new { id = created.Id }, MapToDto(reloaded!));
+        var response = new CreateAccessRequestResponseDto(
+            MapToDto(reloaded!),
+            purviewSubmissionWarning);
+
+        return CreatedAtAction(nameof(GetRequest), new { id = created.Id }, response);
     }
 
     /// <summary>List access requests (filtered by role).</summary>
@@ -824,6 +849,14 @@ public class AccessRequestsController : ControllerBase
             ?? User.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value
             ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
             ?? User.FindFirst("sub")?.Value;
+    }
+
+    private string? GetCurrentEntraObjectId()
+    {
+        var objectId = User.FindFirst("oid")?.Value
+            ?? User.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value;
+
+        return Guid.TryParse(objectId, out _) ? objectId : null;
     }
 
     private static IReadOnlyList<string> ResolvePreferredDataAssetGuids(DataProduct product)

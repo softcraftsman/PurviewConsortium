@@ -140,6 +140,7 @@ export default function DataProductDetailPage() {
   const [targetWorkspace, setTargetWorkspace] = useState('');
   const [targetLakehouse, setTargetLakehouse] = useState('');
   const [durationDays, setDurationDays] = useState('');
+  const [requestWarning, setRequestWarning] = useState<string | null>(null);
 
   const { data: product, isLoading } = useQuery({
     queryKey: ['product', id],
@@ -158,7 +159,8 @@ export default function DataProductDetailPage() {
         targetLakehouseItemId: targetLakehouse || undefined,
         requestedDurationDays: durationDays ? parseInt(durationDays) : undefined,
       }),
-    onSuccess: () => {
+    onSuccess: (response) => {
+      setRequestWarning(response.data.purviewSubmissionWarning ?? null);
       setRequestError(null);
       setRequestDialogOpen(false);
       setJustification('');
@@ -216,6 +218,14 @@ export default function DataProductDetailPage() {
           </Button>
         </div>
       </div>
+
+      {requestWarning && (
+        <MessageBar intent="warning" style={{ marginBottom: '16px' }}>
+          <MessageBarBody>
+            Request submitted, but Purview subscription was not created automatically: {requestWarning}
+          </MessageBarBody>
+        </MessageBar>
+      )}
 
       {/* Description */}
       <Card>

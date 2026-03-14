@@ -51,6 +51,24 @@ public class PurviewDataAccessService : IPurviewDataAccessService
             "subscriber {SubscriberObjectId} in tenant {TenantId}",
             subscriptionId, dataProductId, subscriberObjectId, tenantId);
 
+        if (!Guid.TryParse(dataProductId, out _))
+        {
+            return new CreateDataSubscriptionResult
+            {
+                Success = false,
+                ErrorMessage = $"Invalid Purview data product ID: '{dataProductId}'. Expected a GUID."
+            };
+        }
+
+        if (!Guid.TryParse(subscriberObjectId, out _))
+        {
+            return new CreateDataSubscriptionResult
+            {
+                Success = false,
+                ErrorMessage = $"Invalid subscriber object ID: '{subscriberObjectId}'. Expected an Entra object ID GUID."
+            };
+        }
+
         try
         {
             var accessToken = await GetAccessTokenAsync(tenantId, userAccessToken, cancellationToken);
@@ -58,16 +76,19 @@ public class PurviewDataAccessService : IPurviewDataAccessService
             var url = $"{baseUrl}/dataSubscriptions/{Uri.EscapeDataString(subscriptionId)}?api-version={DataAccessApiVersion}";
             var payload = new
             {
-                subscriberIdentity = new
+                dataSubscription = new
                 {
-                    identityType,
-                    objectId = subscriberObjectId
-                },
-                dataProductId,
-                policySetValues = new
-                {
-                    businessJustification,
-                    purpose
+                    subscriberIdentity = new
+                    {
+                        identityType,
+                        objectId = subscriberObjectId
+                    },
+                    dataProductId,
+                    policySetValues = new
+                    {
+                        businessJustification,
+                        purpose
+                    }
                 }
             };
 
@@ -211,7 +232,7 @@ public class PurviewDataAccessService : IPurviewDataAccessService
         try
         {
             using var doc = JsonDocument.Parse(json);
-            return MapSubscriptionElement(doc.RootElement, fallbackId);
+            return MapSubscriptionElement(UnwrapSubscriptionElement(doc.RootElement), fallbackId);
         }
         catch (Exception ex)
         {
@@ -243,8 +264,9 @@ public class PurviewDataAccessService : IPurviewDataAccessService
 
             foreach (var element in items.EnumerateArray())
             {
-                var id = element.TryGetProperty("id", out var idVal) ? idVal.GetString() ?? string.Empty : string.Empty;
-                results.Add(MapSubscriptionElement(element, id));
+                var subscriptionElement = UnwrapSubscriptionElement(element);
+                var id = subscriptionElement.TryGetProperty("id", out var idVal) ? idVal.GetString() ?? string.Empty : string.Empty;
+                results.Add(MapSubscriptionElement(subscriptionElement, id));
             }
         }
         catch (Exception ex)
@@ -283,6 +305,18 @@ public class PurviewDataAccessService : IPurviewDataAccessService
             item.ModifiedDate = modified.TryGetDateTime(out var dt2) ? dt2 : null;
 
         return item;
+    }
+
+    private static JsonElement UnwrapSubscriptionElement(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Object &&
+            element.TryGetProperty("dataSubscription", out var wrapped) &&
+            wrapped.ValueKind == JsonValueKind.Object)
+        {
+            return wrapped;
+        }
+
+        return element;
     }
 
     private async Task<string> GetAccessTokenAsync(

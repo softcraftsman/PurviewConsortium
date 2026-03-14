@@ -160,6 +160,11 @@ export interface AccessRequest {
   sourceInstitutionName?: string;
 }
 
+export interface CreateAccessRequestResponse {
+  request: AccessRequest;
+  purviewSubmissionWarning?: string;
+}
+
 export interface Institution {
   id: string;
   name: string;
@@ -234,7 +239,7 @@ export const requestsApi = {
     targetLakehouseItemId?: string;
     businessJustification: string;
     requestedDurationDays?: number;
-  }) => api.post<AccessRequest>('/requests', data),
+  }) => api.post<CreateAccessRequestResponse>('/requests', data),
   list: (params?: Record<string, string>) =>
     api.get<AccessRequest[]>('/requests', { params }),
   get: (id: string) => api.get<AccessRequest>(`/requests/${id}`),

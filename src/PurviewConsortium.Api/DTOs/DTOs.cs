@@ -157,6 +157,10 @@ public record AccessRequestDto(
     string? SourceTenantId,
     string? SourceInstitutionName);
 
+public record CreateAccessRequestResponseDto(
+    AccessRequestDto Request,
+    string? PurviewSubmissionWarning);
+
 public record UpdateRequestStatusDto(
     RequestStatus NewStatus,
     string? Comment,
