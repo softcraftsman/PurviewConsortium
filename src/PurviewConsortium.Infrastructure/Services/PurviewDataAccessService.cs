@@ -74,29 +74,32 @@ public class PurviewDataAccessService : IPurviewDataAccessService
             var accessToken = await GetAccessTokenAsync(tenantId, userAccessToken, cancellationToken);
             var baseUrl = BuildBaseUrl(tenantId);
             var url = $"{baseUrl}/dataSubscriptions/{Uri.EscapeDataString(subscriptionId)}?api-version={DataAccessApiVersion}";
+
+            // Payload matches the Purview Data Access UI contract exactly — no wrapper object;
+            // dataProductId, subscriberIdentity, and policySetValues are all at the root level.
             var payload = new
             {
-                DataSubscription = new
+                dataProductId,
+                subscriberIdentity = new
                 {
-                    SubscriberIdentity = new
-                    {
-                        IdentityType = identityType,
-                        ObjectId = subscriberObjectId
-                    },
-                    DataProductId = dataProductId,
-                    PolicySetValues = new
-                    {
-                        BusinessJustification = businessJustification,
-                        Purpose = purpose,
-                        UseCase = purpose
-                    }
+                    identityType,
+                    objectId = subscriberObjectId
+                },
+                policySetValues = new
+                {
+                    businessJustification,
+                    useCase = purpose
                 }
             };
+
+            var payloadJson = JsonSerializer.Serialize(payload);
+            _logger.LogDebug(
+                "Purview Data Access create subscription payload: {Payload}", payloadJson);
 
             var request = new HttpRequestMessage(HttpMethod.Put, url)
             {
                 Content = new StringContent(
-                    JsonSerializer.Serialize(payload),
+                    payloadJson,
                     Encoding.UTF8,
                     "application/json")
             };
@@ -233,7 +236,7 @@ public class PurviewDataAccessService : IPurviewDataAccessService
         try
         {
             using var doc = JsonDocument.Parse(json);
-            return MapSubscriptionElement(UnwrapSubscriptionElement(doc.RootElement), fallbackId);
+            return MapSubscriptionElement(doc.RootElement, fallbackId);
         }
         catch (Exception ex)
         {
@@ -265,9 +268,10 @@ public class PurviewDataAccessService : IPurviewDataAccessService
 
             foreach (var element in items.EnumerateArray())
             {
-                var subscriptionElement = UnwrapSubscriptionElement(element);
-                var id = subscriptionElement.TryGetProperty("id", out var idVal) ? idVal.GetString() ?? string.Empty : string.Empty;
-                results.Add(MapSubscriptionElement(subscriptionElement, id));
+                var id = element.TryGetProperty("dataSubscriptionId", out var dsId) ? dsId.GetString() ?? string.Empty
+                    : element.TryGetProperty("id", out var idVal) ? idVal.GetString() ?? string.Empty
+                    : string.Empty;
+                results.Add(MapSubscriptionElement(element, id));
             }
         }
         catch (Exception ex)
@@ -280,11 +284,21 @@ public class PurviewDataAccessService : IPurviewDataAccessService
 
     private static DataSubscriptionItem MapSubscriptionElement(JsonElement el, string fallbackId)
     {
+        // Response fields per the Purview Data Access API sample:
+        //   root-level id field is "dataSubscriptionId"; status is "subscriptionStatus"; date is "createdAt"
+        var idStr = el.TryGetProperty("dataSubscriptionId", out var dsId) ? dsId.GetString()
+            : el.TryGetProperty("id", out var id) ? id.GetString()
+            : null;
+
+        var statusStr = el.TryGetProperty("subscriptionStatus", out var subStatus) ? subStatus.GetString()
+            : el.TryGetProperty("status", out var status) ? status.GetString()
+            : null;
+
         var item = new DataSubscriptionItem
         {
-            Id = el.TryGetProperty("id", out var id) ? id.GetString() ?? fallbackId : fallbackId,
+            Id = idStr ?? fallbackId,
             DataProductId = el.TryGetProperty("dataProductId", out var dpId) ? dpId.GetString() ?? string.Empty : string.Empty,
-            Status = el.TryGetProperty("status", out var status) ? status.GetString() : null
+            Status = statusStr
         };
 
         if (el.TryGetProperty("subscriberIdentity", out var identity))
@@ -299,25 +313,17 @@ public class PurviewDataAccessService : IPurviewDataAccessService
             item.UseCase = psv.TryGetProperty("useCase", out var uc) ? uc.GetString() : null;
         }
 
-        if (el.TryGetProperty("createdDate", out var created) && created.ValueKind == JsonValueKind.String)
-            item.CreatedDate = created.TryGetDateTime(out var dt) ? dt : null;
+        // "createdAt" per the live API response (fall back to "createdDate" for any legacy shape)
+        var createdKey = el.TryGetProperty("createdAt", out var createdAt) ? createdAt
+            : el.TryGetProperty("createdDate", out var createdDate) ? createdDate
+            : default;
+        if (createdKey.ValueKind == JsonValueKind.String)
+            item.CreatedDate = createdKey.TryGetDateTime(out var dt) ? dt : null;
 
         if (el.TryGetProperty("modifiedDate", out var modified) && modified.ValueKind == JsonValueKind.String)
             item.ModifiedDate = modified.TryGetDateTime(out var dt2) ? dt2 : null;
 
         return item;
-    }
-
-    private static JsonElement UnwrapSubscriptionElement(JsonElement element)
-    {
-        if (element.ValueKind == JsonValueKind.Object &&
-            element.TryGetProperty("dataSubscription", out var wrapped) &&
-            wrapped.ValueKind == JsonValueKind.Object)
-        {
-            return wrapped;
-        }
-
-        return element;
     }
 
     private async Task<string> GetAccessTokenAsync(
