@@ -42,7 +42,7 @@ public class PurviewDataAccessService : IPurviewDataAccessService
         string subscriberObjectId,
         string identityType,
         string businessJustification,
-        string useCase,
+        string purpose,
         string? userAccessToken = null,
         CancellationToken cancellationToken = default)
     {
@@ -56,7 +56,6 @@ public class PurviewDataAccessService : IPurviewDataAccessService
             var accessToken = await GetAccessTokenAsync(tenantId, userAccessToken, cancellationToken);
             var baseUrl = BuildBaseUrl(tenantId);
             var url = $"{baseUrl}/dataSubscriptions/{Uri.EscapeDataString(subscriptionId)}?api-version={DataAccessApiVersion}";
-
             var payload = new
             {
                 subscriberIdentity = new
@@ -68,7 +67,7 @@ public class PurviewDataAccessService : IPurviewDataAccessService
                 policySetValues = new
                 {
                     businessJustification,
-                    useCase
+                    purpose
                 }
             };
 

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -41,6 +42,78 @@ try
     else
     {
         builder.Services.AddMicrosoftIdentityWebApiAuthentication(builder.Configuration, "AzureAd");
+        builder.Services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+        {
+            var clientId = builder.Configuration["AzureAd:ClientId"];
+            if (!string.IsNullOrWhiteSpace(clientId))
+            {
+                options.TokenValidationParameters.ValidAudiences = new[]
+                {
+                    clientId,
+                    $"api://{clientId}"
+                };
+            }
+
+            options.Events ??= new JwtBearerEvents();
+            options.Events.OnMessageReceived = context =>
+            {
+                if (isDev && context.Request.Path.StartsWithSegments("/api/requests"))
+                {
+                    Log.Information(
+                        "JWT OnMessageReceived for {Path}. Authorization header present: {HasAuthHeader}",
+                        context.Request.Path,
+                        context.Request.Headers.ContainsKey("Authorization"));
+                }
+
+                return Task.CompletedTask;
+            };
+            options.Events.OnTokenValidated = context =>
+            {
+                if (isDev)
+                {
+                    var principal = context.Principal;
+                    var oid = principal?.FindFirst("oid")?.Value
+                              ?? principal?.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value;
+                    var tid = principal?.FindFirst("tid")?.Value
+                              ?? principal?.FindFirst("http://schemas.microsoft.com/identity/claims/tenantid")?.Value;
+                    var aud = principal?.FindFirst("aud")?.Value;
+
+                    Log.Information(
+                        "JWT token validated for {Path}. oid={Oid}, tid={Tid}, aud={Audience}, authenticated={Authenticated}",
+                        context.Request.Path,
+                        oid ?? "(none)",
+                        tid ?? "(none)",
+                        aud ?? "(none)",
+                        context.Principal?.Identity?.IsAuthenticated == true);
+                }
+
+                return Task.CompletedTask;
+            };
+            options.Events.OnAuthenticationFailed = context =>
+            {
+                Log.Warning(
+                    context.Exception,
+                    "JWT authentication failed for {Path}: {Message}",
+                    context.Request.Path,
+                    context.Exception.Message);
+
+                return Task.CompletedTask;
+            };
+            options.Events.OnChallenge = context =>
+            {
+                if (isDev && context.Request.Path.StartsWithSegments("/api/requests"))
+                {
+                    Log.Warning(
+                        "JWT challenge for {Path}. Error={Error}, Description={Description}, Authorization header present: {HasAuthHeader}",
+                        context.Request.Path,
+                        context.Error ?? "(none)",
+                        context.ErrorDescription ?? "(none)",
+                        context.Request.Headers.ContainsKey("Authorization"));
+                }
+
+                return Task.CompletedTask;
+            };
+        });
         builder.Services.AddAuthorizationBuilder()
             .AddPolicy("RequireConsortiumAdmin", p =>
                 p.RequireClaim("roles", "Consortium.Admin"))
@@ -197,6 +270,23 @@ END
     app.UseHttpsRedirection();
     app.UseCors("AllowSPA");
     app.UseAuthentication();
+    if (isDev)
+    {
+        app.Use(async (context, next) =>
+        {
+            if (context.Request.Path.StartsWithSegments("/api/requests"))
+            {
+                Log.Information(
+                    "Post-auth middleware for {Path}. Authenticated={Authenticated}, UserName={UserName}, Claims={ClaimCount}",
+                    context.Request.Path,
+                    context.User?.Identity?.IsAuthenticated == true,
+                    context.User?.Identity?.Name ?? "(none)",
+                    context.User?.Claims?.Count() ?? 0);
+            }
+
+            await next();
+        });
+    }
     app.UseAuthorization();
     app.MapControllers();
 

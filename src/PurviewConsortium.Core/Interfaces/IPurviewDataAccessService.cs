@@ -56,7 +56,7 @@ public interface IPurviewDataAccessService
     /// <param name="subscriberObjectId">The Azure AD object ID of the subscriber.</param>
     /// <param name="identityType">Identity type: "User", "ServicePrincipal", or "Group".</param>
     /// <param name="businessJustification">Why the subscriber needs access.</param>
-    /// <param name="useCase">The named use-case value required by the data product's policy set.</param>
+    /// <param name="purpose">The named purpose value required by the data product's policy set.</param>
     /// <param name="userAccessToken">Optional caller bearer token for OBO token acquisition.</param>
     Task<CreateDataSubscriptionResult> CreateDataSubscriptionAsync(
         string tenantId,
@@ -65,7 +65,7 @@ public interface IPurviewDataAccessService
         string subscriberObjectId,
         string identityType,
         string businessJustification,
-        string useCase,
+        string purpose,
         string? userAccessToken = null,
         CancellationToken cancellationToken = default);
 

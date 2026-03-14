@@ -22,6 +22,14 @@ api.interceptors.response.use(
 // Attach bearer token to every request
 api.interceptors.request.use(async (config) => {
   const accounts = msalInstance.getAllAccounts();
+  console.info('[api] request', {
+    url: config.url,
+    baseURL: config.baseURL,
+    accountCount: accounts.length,
+    activeAccount: msalInstance.getActiveAccount()?.username ?? null,
+    scopes: apiScopes,
+  });
+
   if (accounts.length > 0) {
     try {
       const response = await msalInstance.acquireTokenSilent({
@@ -29,10 +37,18 @@ api.interceptors.request.use(async (config) => {
         account: accounts[0],
       });
       config.headers.Authorization = `Bearer ${response.accessToken}`;
-    } catch {
+      console.info('[api] token attached', {
+        url: config.url,
+        username: response.account?.username ?? null,
+        tenantId: response.account?.tenantId ?? null,
+        scopes: response.scopes,
+      });
+    } catch (error) {
       // If silent fails, user will need to re-login via the UI
-      console.warn('Token acquisition failed silently');
+      console.warn('[api] token acquisition failed silently', error);
     }
+  } else {
+    console.warn('[api] no cached MSAL accounts available; request will be sent without bearer token');
   }
   return config;
 });

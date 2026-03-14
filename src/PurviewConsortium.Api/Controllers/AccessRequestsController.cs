@@ -60,7 +60,13 @@ public class AccessRequestsController : ControllerBase
     public async Task<ActionResult<AccessRequestDto>> CreateRequest([FromBody] CreateAccessRequestDto dto)
     {
         var userId = GetCurrentUserId();
-        if (userId == null) return Unauthorized();
+        if (userId == null)
+        {
+            _logger.LogWarning(
+                "CreateRequest unauthorized: could not resolve current user ID from claims. Claims: {Claims}",
+                string.Join(", ", User.Claims.Select(c => $"{c.Type}={c.Value}")));
+            return Unauthorized();
+        }
 
         var product = await _dataProductRepo.GetByIdAsync(dto.DataProductId);
         if (product == null || !product.IsListed)
@@ -120,7 +126,8 @@ public class AccessRequestsController : ControllerBase
                 // The Data Access API requires the Purview Data Product ID (GUID string).
                 var purviewDataProductId = product.PurviewQualifiedName;
                 var subscriberObjectId = request.RequestingUserId;
-                var useCase = ResolveUseCase(product.UseCases);
+                var purpose = "Research";
+                var purviewBusinessJustification = BuildPurviewBusinessJustification(created, product);
 
                 if (string.IsNullOrWhiteSpace(purviewDataProductId) ||
                     !Guid.TryParse(purviewDataProductId, out _))
@@ -140,8 +147,8 @@ public class AccessRequestsController : ControllerBase
                         dataProductId: purviewDataProductId,
                         subscriberObjectId: subscriberObjectId,
                         identityType: "User",
-                        businessJustification: dto.BusinessJustification,
-                        useCase: useCase,
+                        businessJustification: purviewBusinessJustification,
+                        purpose: purpose,
                         userAccessToken: userToken);
 
                     if (subscriptionResult.Success)
@@ -811,8 +818,13 @@ public class AccessRequestsController : ControllerBase
         };
     }
 
-    private string? GetCurrentUserId() =>
-        User.FindFirst("oid")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    private string? GetCurrentUserId()
+    {
+        return User.FindFirst("oid")?.Value
+            ?? User.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? User.FindFirst("sub")?.Value;
+    }
 
     private static IReadOnlyList<string> ResolvePreferredDataAssetGuids(DataProduct product)
     {
@@ -830,17 +842,40 @@ public class AccessRequestsController : ControllerBase
             .ToList();
     }
 
-    private static string ResolveUseCase(string? configuredUseCases)
+    private static string BuildPurviewBusinessJustification(AccessRequest request, DataProduct product)
     {
-        if (string.IsNullOrWhiteSpace(configuredUseCases))
-            return "Critical Reporting";
+        var isExternal = request.ShareType == Core.Enums.ShareType.External;
+        var manualAction = isExternal
+            ? "Manual action requested: create External Data Share to the requesting tenant/user. If feasible, create OneLake shortcut in the provided target workspace/lakehouse."
+            : "Manual action requested: create/validate direct Fabric shortcut access in the provided target workspace/lakehouse (same-tenant request).";
 
-        // Use first configured use case from comma/semicolon separated values.
-        var first = configuredUseCases
-            .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .FirstOrDefault();
+        var lines = new List<string>
+        {
+            "Original Justification:",
+            request.BusinessJustification,
+            string.Empty,
+            "Fulfillment Context:",
+            $"- RequestId: {request.Id}",
+            $"- ShareType: {request.ShareType}",
+            $"- Requesting User: {request.RequestingUserName} ({request.RequestingUserEmail})",
+            $"- Requesting User ObjectId: {request.RequestingUserId}",
+            $"- Requesting TenantId: {request.RequestingTenantId ?? "(unknown)"}",
+            $"- Requesting Institution: {request.RequestingInstitution?.Name ?? "(unknown)"}",
+            $"- Data Product: {product.Name}",
+            $"- Data Product Purview Id: {product.PurviewQualifiedName}",
+            $"- Source Institution: {request.SourceInstitutionName ?? product.Institution?.Name ?? "(unknown)"}",
+            $"- Source TenantId: {request.SourceTenantId ?? product.Institution?.TenantId ?? "(unknown)"}",
+            $"- Source WorkspaceId: {request.SourceFabricWorkspaceId ?? "(not provided)"}",
+            $"- Source Lakehouse ItemId: {request.SourceLakehouseItemId ?? "(not provided)"}",
+            $"- Target WorkspaceId: {request.TargetFabricWorkspaceId ?? "(not provided)"}",
+            $"- Target Lakehouse ItemId: {request.TargetLakehouseItemId ?? "(not provided)"}",
+            $"- Requested Duration Days: {(request.RequestedDurationDays?.ToString() ?? "(unspecified)")}",
+            string.Empty,
+            "Manual Fulfillment Guidance:",
+            $"- {manualAction}"
+        };
 
-        return string.IsNullOrWhiteSpace(first) ? "Critical Reporting" : first;
+        return string.Join("\n", lines);
     }
 
     private static AccessRequestDto MapToDto(AccessRequest r) => new(
