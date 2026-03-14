@@ -376,14 +376,9 @@ public class PurviewDataAccessService : IPurviewDataAccessService
 
     private static string ResolveSubscriptionStatus(JsonElement el)
     {
-        if (el.TryGetProperty("subscriptionStatus", out var subscriptionStatus) &&
-            subscriptionStatus.ValueKind == JsonValueKind.String)
-        {
-            var normalized = NormalizeSubscriptionStatus(subscriptionStatus.GetString());
-            if (normalized != null)
-                return normalized;
-        }
-
+        // Prefer explicit approver decisions when present; these represent the
+        // authoritative approval outcome even when top-level subscriptionStatus
+        // remains Pending during backend processing.
         if (el.TryGetProperty("policySetValues", out var policySetValues) &&
             policySetValues.TryGetProperty("approverDecisions", out var approverDecisions) &&
             approverDecisions.ValueKind == JsonValueKind.Array &&
@@ -404,12 +399,21 @@ public class PurviewDataAccessService : IPurviewDataAccessService
 
             if (decisions.Any(static decision =>
                     string.Equals(decision, "Rejected", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(decision, "Denied", StringComparison.OrdinalIgnoreCase)))
+                    || string.Equals(decision, "Denied", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(decision, "Declined", StringComparison.OrdinalIgnoreCase)))
                 return "Denied";
 
             if (decisions.All(static decision =>
                     string.Equals(decision, "NoResponse", StringComparison.OrdinalIgnoreCase)))
                 return "Pending";
+        }
+
+        if (el.TryGetProperty("subscriptionStatus", out var subscriptionStatus) &&
+            subscriptionStatus.ValueKind == JsonValueKind.String)
+        {
+            var normalized = NormalizeSubscriptionStatus(subscriptionStatus.GetString());
+            if (normalized != null)
+                return normalized;
         }
 
         if (el.TryGetProperty("status", out var status) && status.ValueKind == JsonValueKind.String)
