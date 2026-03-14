@@ -76,18 +76,19 @@ public class PurviewDataAccessService : IPurviewDataAccessService
             var url = $"{baseUrl}/dataSubscriptions/{Uri.EscapeDataString(subscriptionId)}?api-version={DataAccessApiVersion}";
             var payload = new
             {
-                dataSubscription = new
+                DataSubscription = new
                 {
-                    subscriberIdentity = new
+                    SubscriberIdentity = new
                     {
-                        identityType,
-                        objectId = subscriberObjectId
+                        IdentityType = identityType,
+                        ObjectId = subscriberObjectId
                     },
-                    dataProductId,
-                    policySetValues = new
+                    DataProductId = dataProductId,
+                    PolicySetValues = new
                     {
-                        businessJustification,
-                        purpose
+                        BusinessJustification = businessJustification,
+                        Purpose = purpose,
+                        UseCase = purpose
                     }
                 }
             };
