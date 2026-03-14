@@ -27,24 +27,8 @@ public class AccessRequest
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
     public DateTime ModifiedDate { get; set; } = DateTime.UtcNow;
 
-    // --- Denormalized source details (captured at request creation time) ---
-    // These are snapshotted so the fulfillment view remains accurate even if
-    // the institution record or data product is later updated.
-
     /// <summary>Whether this is a same-tenant (Internal) or cross-tenant (External) share.</summary>
     public ShareType ShareType { get; set; } = ShareType.External;
-
-    /// <summary>Source linked data asset's Fabric workspace ID at request time.</summary>
-    public string? SourceFabricWorkspaceId { get; set; }
-
-    /// <summary>Source data product's lakehouse item ID (from DataProduct.SourceLakehouseItemId at request time).</summary>
-    public string? SourceLakehouseItemId { get; set; }
-
-    /// <summary>Source institution's Azure AD tenant ID (from Institution.TenantId at request time).</summary>
-    public string? SourceTenantId { get; set; }
-
-    /// <summary>Source institution's display name (from Institution.Name at request time).</summary>
-    public string? SourceInstitutionName { get; set; }
 
     // Navigation properties
     public DataProduct DataProduct { get; set; } = null!;

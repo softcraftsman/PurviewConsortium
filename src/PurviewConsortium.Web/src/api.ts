@@ -154,10 +154,6 @@ export interface AccessRequest {
   expirationDate?: string;
   createdDate: string;
   shareType: string;
-  sourceFabricWorkspaceId?: string;
-  sourceLakehouseItemId?: string;
-  sourceTenantId?: string;
-  sourceInstitutionName?: string;
 }
 
 export interface CreateAccessRequestResponse {

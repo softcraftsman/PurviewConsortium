@@ -151,11 +151,7 @@ public record AccessRequestDto(
     string? PurviewWorkflowStatus,
     DateTime? ExpirationDate,
     DateTime CreatedDate,
-    string ShareType,
-    string? SourceFabricWorkspaceId,
-    string? SourceLakehouseItemId,
-    string? SourceTenantId,
-    string? SourceInstitutionName);
+    string ShareType);
 
 public record CreateAccessRequestResponseDto(
     AccessRequestDto Request,

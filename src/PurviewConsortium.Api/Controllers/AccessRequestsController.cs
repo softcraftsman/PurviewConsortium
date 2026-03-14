@@ -101,11 +101,6 @@ public class AccessRequestsController : ControllerBase
             RequestedDurationDays = dto.RequestedDurationDays,
             Status = RequestStatus.Submitted,
             StatusChangedDate = DateTime.UtcNow,
-            // Denormalize source details at creation time for self-contained fulfillment view
-            SourceFabricWorkspaceId = ResolveSourceWorkspaceId(product),
-            SourceLakehouseItemId = product.SourceLakehouseItemId,
-            SourceTenantId = product.Institution.TenantId,
-            SourceInstitutionName = product.Institution.Name,
             // Determine share type: internal if requesting tenant matches the owning institution's tenant
             ShareType = !string.IsNullOrEmpty(tenantId)
                 && string.Equals(tenantId, product.Institution.TenantId, StringComparison.OrdinalIgnoreCase)
@@ -317,16 +312,13 @@ public class AccessRequestsController : ControllerBase
         if (request.Status != RequestStatus.Approved && request.Status != RequestStatus.Fulfilled)
             return BadRequest("Fulfillment details are only available for approved requests.");
 
-        // Prefer denormalized fields captured at request creation time;
-        // fall back to live navigation properties for legacy rows without them.
         var sourceInstitution = request.DataProduct.Institution;
         var requestingInstitution = request.RequestingInstitution;
 
-        var sourceName     = request.SourceInstitutionName ?? sourceInstitution.Name;
-        var sourceTenant   = request.SourceTenantId        ?? sourceInstitution.TenantId;
-        var sourceWorkspace = request.SourceFabricWorkspaceId
-            ?? ResolveSourceWorkspaceId(request.DataProduct);
-        var sourceLakehouse = request.SourceLakehouseItemId ?? request.DataProduct.SourceLakehouseItemId;
+        var sourceName     = sourceInstitution.Name;
+        var sourceTenant   = sourceInstitution.TenantId;
+        var sourceWorkspace = ResolveSourceWorkspaceId(request.DataProduct);
+        var sourceLakehouse = request.DataProduct.SourceLakehouseItemId;
         var recipientTenant = request.RequestingTenantId ?? requestingInstitution?.TenantId;
         var shareType = request.ShareType.ToString();
 
@@ -676,9 +668,8 @@ public class AccessRequestsController : ControllerBase
                 return (false, msg);
             }
 
-            // Validate all required fields are present for automated fulfillment
-            var sourceWorkspaceId = req.SourceFabricWorkspaceId
-                ?? (req.DataProduct == null ? null : ResolveSourceWorkspaceId(req.DataProduct));
+            // Validate all required fields are present for automated fulfillment.
+            var sourceWorkspaceId = req.DataProduct == null ? null : ResolveSourceWorkspaceId(req.DataProduct);
 
             if (string.IsNullOrEmpty(sourceWorkspaceId))
             {
@@ -695,9 +686,7 @@ public class AccessRequestsController : ControllerBase
                 return (false, msg);
             }
 
-            // Source item ID: prefer denormalized field, fall back to live data product
-            var sourceItemId = req.SourceLakehouseItemId
-                ?? req.DataProduct?.SourceLakehouseItemId
+            var sourceItemId = req.DataProduct?.SourceLakehouseItemId
                 ?? _configuration["Fabric:SourceItemOverride"];
 
             if (string.IsNullOrEmpty(sourceItemId))
@@ -891,24 +880,17 @@ public class AccessRequestsController : ControllerBase
             $"- RequestId: {request.Id}",
             $"- ShareType: {request.ShareType}",
             $"- Requesting User: {request.RequestingUserName} ({request.RequestingUserEmail})",
-            $"- Requesting User ObjectId: {request.RequestingUserId}",
-            $"- Requesting TenantId: {request.RequestingTenantId ?? "(unknown)"}",
-            $"- Requesting Institution: {request.RequestingInstitution?.Name ?? "(unknown)"}",
+            $"- Requesting Institution: {request.RequestingInstitution?.Name ?? request.RequestingTenantId ?? "(unknown)"}",
             $"- Data Product: {product.Name}",
-            $"- Data Product Purview Id: {product.PurviewQualifiedName}",
-            $"- Source Institution: {request.SourceInstitutionName ?? product.Institution?.Name ?? "(unknown)"}",
-            $"- Source TenantId: {request.SourceTenantId ?? product.Institution?.TenantId ?? "(unknown)"}",
-            $"- Source WorkspaceId: {request.SourceFabricWorkspaceId ?? "(not provided)"}",
-            $"- Source Lakehouse ItemId: {request.SourceLakehouseItemId ?? "(not provided)"}",
             $"- Target WorkspaceId: {request.TargetFabricWorkspaceId ?? "(not provided)"}",
             $"- Target Lakehouse ItemId: {request.TargetLakehouseItemId ?? "(not provided)"}",
-            $"- Requested Duration Days: {(request.RequestedDurationDays?.ToString() ?? "(unspecified)")}",
+            $"- Requested Duration Days: {request.RequestedDurationDays?.ToString() ?? "(unspecified)"}",
             string.Empty,
             "Manual Fulfillment Guidance:",
             $"- {manualAction}"
         };
 
-        return string.Join("\n", lines);
+        return string.Join("<br />\n", lines);
     }
 
     private static AccessRequestDto MapToDto(AccessRequest r) => new(
@@ -936,10 +918,6 @@ public class AccessRequestsController : ControllerBase
         r.PurviewWorkflowStatus,
         r.ExpirationDate,
         r.CreatedDate,
-        r.ShareType.ToString(),
-        r.SourceFabricWorkspaceId,
-        r.SourceLakehouseItemId,
-        r.SourceTenantId,
-        r.SourceInstitutionName
+        r.ShareType.ToString()
     );
 }
